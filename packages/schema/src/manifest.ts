@@ -43,6 +43,26 @@ export const InstallStep = z.discriminatedUnion('action', [
 ]);
 export type InstallStep = z.infer<typeof InstallStep>;
 
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp)(\?.*)?$/i;
+
+/** An image: absolute https URL, or a path inside the mod's GitHub repo (e.g. `docs/top.png`). */
+export const MediaRef = z
+  .string()
+  .min(1)
+  .refine(
+    (v) => (/^https:\/\//.test(v) ? true : !v.startsWith('/') && !v.split('/').includes('..') && IMAGE_EXT.test(v)),
+    'must be an https URL or a repo-relative image path (png, jpg, gif, webp)',
+  );
+
+export const Preview = z
+  .object({
+    top: MediaRef.describe('What the main (upper) screen shows'),
+    bottom: MediaRef.describe('What the second (lower) screen shows'),
+    caption: z.string().max(140).optional(),
+  })
+  .strict();
+export type Preview = z.infer<typeof Preview>;
+
 export const MOD_TYPES = [
   'dual_screen_layout',
   'texture_pack',
@@ -89,7 +109,11 @@ export const ModManifest = z
     license: z.string().describe('SPDX id, or "unknown"'),
     homepage: z.url().optional(),
     tags: z.array(z.string()).default([]),
-    screenshots: z.array(z.url()).default([]),
+    screenshots: z.array(MediaRef).default([]).describe('Gallery images; the first one is the card cover'),
+    previews: z
+      .array(Preview)
+      .default([])
+      .describe('Pairs of screenshots shown in the dual-screen preview, top and bottom screen'),
     requires: z.array(z.string()).default([]).describe('Human-readable requirements'),
     devices: z.array(Slug).default([]).describe('Devices the mod is designed for; empty = any dual-screen setup'),
     source: z
@@ -100,6 +124,8 @@ export const ModManifest = z
           .min(1)
           .describe('Glob matched against release asset names'),
         prereleases: z.boolean().default(false),
+        /** Collect images from the README, release notes and release assets. */
+        auto_media: z.boolean().default(true),
         /** Glob on the release tag, for repos that publish several mods. */
         tag_pattern: z.string().optional(),
       })

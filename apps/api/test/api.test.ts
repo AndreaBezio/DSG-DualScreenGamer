@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { GitHubClient } from '../../worker/src/github.ts';
-import { getState, syncRegistry, syncReleases } from '../../worker/src/sync.ts';
+import { getState, syncMedia, syncRegistry, syncReleases } from '../../worker/src/sync.ts';
 import { fakeGitHubFetch, registry } from '../../worker/test/fixtures.ts';
 import { createApp } from '../src/app.ts';
 
@@ -26,6 +26,7 @@ beforeAll(async () => {
   const github = new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test');
   const res = await syncReleases(db, registry, { github });
   expect(res.errors).toEqual([]);
+  expect((await syncMedia(db, registry, { github })).errors).toEqual([]);
   app = createApp(db, { adminToken: 'secret-token' });
 });
 
@@ -51,6 +52,37 @@ describe('sync', () => {
     const items = (await (await get('/v1/mods')).json() as any).items;
     expect(items).toHaveLength(2);
     expect(items.every((m: any) => m.latest_release)).toBe(true);
+  });
+});
+
+describe('media', () => {
+  it('collects screenshots from release notes, README and release assets', async () => {
+    const mod = (await (await get('/v1/mods/test-quest-hd')).json()) as any;
+    expect(mod.previews).toHaveLength(1);
+    expect(mod.previews[0].top.url).toBe('https://raw.githubusercontent.com/tester/test-quest-hd/main/docs/battle-top.png');
+    expect(mod.previews[0].bottom).toMatchObject({ width: 1240, height: 1080, source: 'readme' });
+    expect(mod.previews[0].caption).toBe('Battle, top screen');
+    // Badges, the small logo and the SVG are gone; release notes come first
+    expect(mod.media.map((m: any) => [m.source, m.url.split('/').pop()])).toEqual([
+      ['release', 'compare.png'],
+      ['readme', 'town.jpg'],
+      ['asset', 'attached-shot.webp'],
+    ]);
+    expect(mod.cover_url).toBe(mod.previews[0].top.url);
+  });
+
+  it('skips unchanged repos and keeps manifest images first', async () => {
+    const github = new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test');
+    await syncMedia(db, registry, { github }); // catches up the mod re-added by the sync tests
+    expect((await syncMedia(db, registry, { github })).updated).toBe(0);
+    const withShot = {
+      ...registry,
+      mods: registry.mods.map((m) => (m.id === 'pocket-test-layout' ? { ...m, screenshots: ['shots/cover.png'] } : m)),
+    };
+    await syncRegistry(db, withShot);
+    const mod = (await (await get('/v1/mods/pocket-test-layout')).json()) as any;
+    expect(mod.cover_url).toBe('https://raw.githubusercontent.com/tester/pocket-layout/HEAD/shots/cover.png');
+    await syncRegistry(db, registry);
   });
 });
 

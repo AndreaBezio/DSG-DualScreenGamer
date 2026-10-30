@@ -73,10 +73,40 @@
     },
     "screenshots": {
       "default": [],
+      "description": "Gallery images; the first one is the card cover",
       "type": "array",
       "items": {
         "type": "string",
-        "format": "uri"
+        "minLength": 1
+      }
+    },
+    "previews": {
+      "default": [],
+      "description": "Pairs of screenshots shown in the dual-screen preview, top and bottom screen",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "top": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the main (upper) screen shows"
+          },
+          "bottom": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the second (lower) screen shows"
+          },
+          "caption": {
+            "type": "string",
+            "maxLength": 140
+          }
+        },
+        "required": [
+          "top",
+          "bottom"
+        ],
+        "additionalProperties": false
       }
     },
     "requires": {
@@ -134,6 +164,10 @@
         },
         "prereleases": {
           "default": false,
+          "type": "boolean"
+        },
+        "auto_media": {
+          "default": true,
           "type": "boolean"
         },
         "tag_pattern": {

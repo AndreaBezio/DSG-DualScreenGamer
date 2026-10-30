@@ -23,6 +23,8 @@ export type Release = {
   changelog: string | null;
   assets: Asset[];
 };
+export type Media = { url: string; width: number | null; height: number | null; source: string; caption: string | null };
+export type Preview = { top: Media; bottom: Media; caption: string | null };
 export type InstallStep = { action: 'extract' | 'copy' | 'install_apk' | 'note'; asset?: string; to?: string; from?: string; text?: string };
 export type Mod = {
   id: string;
@@ -36,7 +38,9 @@ export type Mod = {
   homepage: string | null;
   source_repo: string;
   tags: string[];
-  screenshots: string[];
+  cover_url: string | null;
+  media: Media[];
+  previews: Preview[];
   requires: string[];
   devices: string[];
   stars: number | null;
@@ -68,9 +72,22 @@ export const api = {
   game: (id: string) => get<Game>(`/v1/games/${encodeURIComponent(id)}`),
   mod: (id: string) => get<Mod>(`/v1/mods/${encodeURIComponent(id)}`),
   modsForGame: async (id: string) => (await get<{ items: Mod[] }>(`/v1/mods?game=${encodeURIComponent(id)}`))?.items ?? [],
+  mods: async (params: Record<string, string | undefined>) =>
+    (await get<{ items: Mod[] }>(`/v1/mods?${query(params)}`))?.items ?? [],
+  games: async (params: Record<string, string | undefined>) =>
+    (await get<{ items: Game[]; next_offset: number | null }>(`/v1/games?${query({ limit: '100', ...params })}`))?.items ?? [],
   releases: async (id: string) => (await get<{ items: Release[] }>(`/v1/mods/${encodeURIComponent(id)}/releases`))?.items ?? [],
   status: () => get<{ last_sync: { finished_at: string | null; status: string } | null }>('/v1/status'),
 };
+
+function query(params: Record<string, string | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
+  return q.toString();
+}
+
+export const MOD_TYPES = ['dual_screen_layout', 'texture_pack', 'patch', 'companion_app', 'shader', 'utility'] as const;
+export type ModType = (typeof MOD_TYPES)[number];
 
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;

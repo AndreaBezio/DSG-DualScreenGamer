@@ -3,6 +3,7 @@ import {
   emulators,
   gameIdentifiers,
   games,
+  modMedia,
   modReleases,
   mods,
   modTargets,
@@ -13,7 +14,7 @@ import {
 } from '@dsg/db';
 import { normalizeIdentifier, type IdentifierKind } from '@dsg/schema';
 import { and, arrayContains, asc, desc, eq, ilike, inArray, sql, type SQL } from 'drizzle-orm';
-import type { GameDto, ModDto, ReleaseDto } from './dto.ts';
+import type { GameDto, MediaDto, ModDto, ReleaseDto } from './dto.ts';
 import { deviceMatches, targetMatches, type MatchQuery } from './match.ts';
 
 type ModRow = typeof mods.$inferSelect;
@@ -46,22 +47,51 @@ async function releasesFor(db: Db, releaseRows: (typeof modReleases.$inferSelect
   return out;
 }
 
+function shapeMedia(rows: (typeof modMedia.$inferSelect)[]) {
+  const dto = (r: (typeof modMedia.$inferSelect)): MediaDto => ({
+    url: r.url,
+    width: r.width,
+    height: r.height,
+    source: r.source as MediaDto['source'],
+    caption: r.caption,
+  });
+  const gallery = rows.filter((r) => r.kind === 'gallery').map(dto);
+  const previews: ModDto['previews'] = [];
+  for (const top of rows.filter((r) => r.kind === 'top')) {
+    const bottom = rows.find((r) => r.kind === 'bottom' && r.pair === top.pair);
+    if (bottom) previews.push({ top: dto(top), bottom: dto(bottom), caption: top.caption });
+  }
+  return { gallery, previews };
+}
+
 /** Builds full mod DTOs (targets + latest release) for a set of rows, in a constant number of queries. */
 async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets: (typeof modTargets.$inferSelect)[] })[]> {
   if (!rows.length) return [];
   const ids = rows.map((m) => m.id);
-  const [targets, latest] = await Promise.all([
+  const gameIds = [...new Set(rows.map((m) => m.gameId).filter((g): g is string => !!g))];
+  const [targets, latest, media, covers] = await Promise.all([
     db.select().from(modTargets).where(inArray(modTargets.modId, ids)).orderBy(asc(modTargets.id)),
     db
       .selectDistinctOn([modReleases.modId])
       .from(modReleases)
       .where(inArray(modReleases.modId, ids))
       .orderBy(modReleases.modId, desc(modReleases.publishedAt)),
+    db.select().from(modMedia).where(inArray(modMedia.modId, ids)).orderBy(asc(modMedia.position)),
+    gameIds.length
+      ? db.select({ id: games.id, coverUrl: games.coverUrl }).from(games).where(inArray(games.id, gameIds))
+      : Promise.resolve([]),
   ]);
   const releases = await releasesFor(db, latest);
   return rows.map((m) => {
     const t = targets.filter((x) => x.modId === m.id);
     const rel = latest.find((r) => r.modId === m.id);
+    const { gallery, previews } = shapeMedia(media.filter((x) => x.modId === m.id));
+    const cover =
+      gallery.find((g) => g.source === 'manifest')?.url ??
+      previews[0]?.top.url ??
+      gallery[0]?.url ??
+      covers.find((c) => c.id === m.gameId)?.coverUrl ??
+      null;
     return {
       id: m.id,
       name: m.name,
@@ -74,7 +104,9 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
       homepage: m.homepage,
       source_repo: m.source.github,
       tags: m.tags,
-      screenshots: m.screenshots,
+      cover_url: cover,
+      media: gallery,
+      previews,
       requires: m.requires,
       devices: m.devices,
       stars: m.stars,

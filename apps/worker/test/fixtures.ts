@@ -42,9 +42,10 @@ export const registry: Registry = {
       license: 'MIT',
       tags: [],
       screenshots: [],
+      previews: [],
       requires: [],
       devices: [],
-      source: { github: 'tester/test-quest-hd', prereleases: false, assets: [{ role: 'main', pattern: '*.zip' }] },
+      source: { github: 'tester/test-quest-hd', prereleases: false, auto_media: true, assets: [{ role: 'main', pattern: '*.zip' }] },
       targets: [{ platform: '3ds', emulator: 'azahar', min_version: '2120', identifiers: [{ kind: 'title_id', value: '00040000000AAAA0' }] }],
       install: [{ action: 'extract', asset: 'main', to: '{emulator.textures_dir}/{game.title_id}' }],
     },
@@ -58,9 +59,10 @@ export const registry: Registry = {
       license: 'CC-BY-4.0',
       tags: [],
       screenshots: [],
+      previews: [],
       requires: [],
       devices: ['ayn-thor'],
-      source: { github: 'tester/pocket-layout', prereleases: false, assets: [{ role: 'main', pattern: '*.{json,zip}' }] },
+      source: { github: 'tester/pocket-layout', prereleases: false, auto_media: true, assets: [{ role: 'main', pattern: '*.{json,zip}' }] },
       targets: [{ platform: 'nds', identifiers: [] }],
       install: [{ action: 'copy', asset: 'main', to: '{emulator.layouts_dir}' }],
     },
@@ -81,12 +83,12 @@ export const releases: Record<string, GhRelease[]> = {
     {
       tag_name: 'v1.1.0',
       name: 'HD 1.1',
-      body: 'fixes',
+      body: 'fixes\n\n![HD comparison](https://img.test/compare.png)\n[![build](https://img.shields.io/badge/build-ok-green)](x)',
       draft: false,
       prerelease: false,
       published_at: '2026-09-01T00:00:00Z',
       html_url: 'https://github.com/tester/test-quest-hd/releases/tag/v1.1.0',
-      assets: [asset('test-quest-hd.zip', `sha256:${'b'.repeat(64)}`), asset('README.md')],
+      assets: [asset('test-quest-hd.zip', `sha256:${'b'.repeat(64)}`), asset('README.md'), asset('attached-shot.webp')],
     },
     {
       tag_name: 'v1.2.0-beta',
@@ -123,17 +125,73 @@ export const releases: Record<string, GhRelease[]> = {
   ],
 };
 
+export const readmes: Record<string, string> = {
+  'tester/test-quest-hd': [
+    '# Test Quest HD',
+    '[![stars](https://img.shields.io/github/stars/tester/test-quest-hd)](x)',
+    '<img src="logo.png" alt="logo" width="64">',
+    '![Battle, top screen](docs/battle-top.png)',
+    '![Battle, bottom screen](docs/battle-bottom.png)',
+    '<img src="https://github.com/tester/test-quest-hd/blob/main/docs/town.jpg" alt="Town">',
+    '![diagram](docs/flow.svg)',
+  ].join('\n'),
+};
+
+/** Image sizes served by the fake image host, by file name. */
+export const imageSizes: Record<string, [number, number]> = {
+  'compare.png': [1280, 720],
+  'logo.png': [64, 64],
+  'battle-top.png': [1920, 1080],
+  'battle-bottom.png': [1240, 1080],
+  'town.jpg': [800, 600],
+  'attached-shot.webp': [1920, 1080],
+};
+
+/** First bytes of a PNG with the given size: enough for image-size. */
+export function pngHead(width: number, height: number): Uint8Array {
+  const b = Buffer.alloc(33);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b, 0);
+  b.writeUInt32BE(13, 8);
+  b.write('IHDR', 12, 'ascii');
+  b.writeUInt32BE(width, 16);
+  b.writeUInt32BE(height, 20);
+  b[24] = 8;
+  b[25] = 6;
+  return b;
+}
+
 /** Stand-in for GitHub's REST API with ETag support. */
 export function fakeGitHubFetch(): typeof fetch {
   return (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
+    const sent = (init?.headers as Record<string, string> | undefined)?.['If-None-Match'];
+    if (url.hostname !== 'gh.test') {
+      // Any other host is the image CDN (raw.githubusercontent.com, release downloads, img.test)
+      const name = url.pathname.split('/').pop()!;
+      const size = imageSizes[name];
+      return size ? new Response(pngHead(...size)) : new Response('missing', { status: 404 });
+    }
+    const readme = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/readme$/);
+    if (readme) {
+      const text = readmes[readme[1]!];
+      if (!text) return new Response('{}', { status: 404 });
+      const etag = `"readme-${readme[1]}"`;
+      if (sent === etag) return new Response(null, { status: 304 });
+      return Response.json(
+        {
+          content: Buffer.from(text).toString('base64'),
+          encoding: 'base64',
+          download_url: `https://raw.githubusercontent.com/${readme[1]}/main/README.md`,
+        },
+        { headers: { etag } },
+      );
+    }
     const m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)(\/releases)?$/);
     if (!m) return new Response('not found', { status: 404 });
     const data = releases[m[1]!];
     if (!data) return new Response('{}', { status: 404 });
     if (!m[2]) return Response.json({ stargazers_count: 42 });
     const etag = `"etag-${m[1]}"`;
-    const sent = (init?.headers as Record<string, string> | undefined)?.['If-None-Match'];
     if (sent === etag) return new Response(null, { status: 304 });
     return Response.json(data, { headers: { etag } });
   }) as typeof fetch;

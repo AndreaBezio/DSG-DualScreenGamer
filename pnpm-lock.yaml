@@ -81,6 +81,9 @@ importers:
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(postgres@3.4.9)
+      image-size:
+        specifier: 2.0.4
+        version: 2.0.4
       yaml:
         specifier: 2.9.1
         version: 2.9.1
@@ -1331,6 +1334,11 @@ packages:
   icu-minify@4.14.9:
     resolution: {integrity: sha512-PmO+fNnC3K3mfPKTnm3RrPERrhQZnjm1AlpyZQ0ShbXi8Y/kYZ3YOde8TEjCLz9k3P2DmzkBn8lykGrCAi1Ajw==}
 
+  image-size@2.0.4:
+    resolution: {integrity: sha512-QRUkFFsRV/6fuESxb9Vkq+a0LkSrgKXuc2NEqfikiXxxN/G3tjWt5EVUlMaImRBZRZK/jRBEbYvpPYZL8t08Zw==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   intl-messageformat@11.2.15:
     resolution: {integrity: sha512-W4VNytsXyWgW5lvVchmsb9xgA5rSKqoflu3/IQ9UCtB0z4R+Bx9MoEkwFT/+30RCl/KzUoH0QGGe9lppF5SuvQ==}
 
@@ -2501,6 +2509,8 @@ snapshots:
   icu-minify@4.14.9:
     dependencies:
       '@formatjs/icu-messageformat-parser': 3.5.22
+
+  image-size@2.0.4: {}
 
   intl-messageformat@11.2.15:
     dependencies:

@@ -5,9 +5,12 @@ companion apps** — for the AYN Thor and any two-screen setup, for any platform
 and exposes them through a **public API that emulators and frontends can use to install mods automatically**,
 instead of copying files around by hand.
 
-- **Catalog**: a website with a two-screen UI: a wide top screen that shows, a bottom screen you touch.
+- **Catalog**: a website styled after a handheld's home menu: framed icon cards, a corner-bracket cursor
+  (works with keyboard and gamepad), colored category tabs.
 - **API**: `GET /v1/lookup?title_id=…` → which mods exist for the game being booted, with download URLs,
   sha256 checksums and machine-readable install steps. See [docs/api.md](docs/api.md).
+- **Screenshots, automatically**: images in the mod's README, release notes and release assets are collected on
+  every sync; pairs like `map-top.png` / `map-bottom.png` are shown as a two-screen preview.
 - **Registry**: mods are listed through YAML manifests reviewed as pull requests. DSG never re-hosts files:
   it resolves downloads from the authors' GitHub releases. See [docs/manifest.md](docs/manifest.md).
 

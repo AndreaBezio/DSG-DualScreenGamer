@@ -46,7 +46,9 @@ authors: [{ name: Your Name, github: your-user }]
 license: MIT              # SPDX id, or "unknown"
 homepage: https://github.com/your-user/my-game-thor-layout
 tags: [layout]
-screenshots: [https://…/shot.png]   # first one is used as the tile art
+screenshots: [shots/menu.png]       # optional; URLs or paths in your repo. First one is the card image
+previews:                 # optional; what both screens show at the same moment
+  - { top: shots/map-top.png, bottom: shots/map-bottom.png, caption: "World map" }
 requires: ["Azahar 2120 or later"]   # shown to users
 devices: [ayn-thor]       # leave empty if it works on any dual-screen setup
 
@@ -57,6 +59,7 @@ source:
     - { role: companion_apk, pattern: "*.apk" }
   prereleases: false      # include GitHub pre-releases
   tag_pattern: "layout-*" # optional, when one repo publishes several mods
+  auto_media: true        # default; set false to stop DSG collecting images automatically
 
 targets:                  # where it works; a client must match at least one
   - platform: 3ds
@@ -76,6 +79,19 @@ Destinations must start with a variable: `{emulator.data_dir}`, `{emulator.load_
 `{game.serial}`. See [api.md](api.md#install-steps).
 
 Missing an emulator, platform or device? Add it to `registry/catalog/` in the same pull request.
+
+## Screenshots
+
+You usually don't need to list any. On every sync DSG collects images from:
+
+1. your README,
+2. the notes of your latest release (images pasted there included),
+3. image files attached to the latest release (`.png`, `.jpg`, `.gif`, `.webp`).
+
+Badges, SVGs and images narrower than 240px are skipped; up to 12 are kept. Images named as a pair, such as
+`map-top.png` + `map-bottom.png` (also `upper`/`lower`, `main`/`second`), become a **two-screen preview** on the mod
+page. Anything you list under `screenshots` or `previews` in the manifest comes first. Repo paths are served from
+your default branch through `raw.githubusercontent.com`; DSG does not copy the images.
 
 ## 3. Validate and open the pull request
 

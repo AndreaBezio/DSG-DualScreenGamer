@@ -49,6 +49,17 @@ only to those exact dumps (e.g. one region).
 | `GET /v1/index.json` | Everything in one document for offline caches. Send `If-None-Match` with the last `ETag`: `304` when unchanged. |
 | `GET /v1/status` | Last sync time and outcome. |
 
+## Images
+
+Every mod carries:
+
+- `cover_url`: the best picture for a card or list row (manifest screenshot, preview, found image, or the game cover).
+- `previews[]`: `{ top, bottom, caption }` pairs showing both screens at the same moment, for a two-screen preview.
+- `media[]`: other screenshots, `{ url, width, height, source, caption }`, where `source` is `manifest`, `release`,
+  `readme` or `asset`.
+
+Images are hosted by GitHub (or wherever the author put them); DSG only stores the URLs.
+
 ## Install steps
 
 Each mod carries an ordered list of steps. Destinations are **path templates**: the client replaces the variables

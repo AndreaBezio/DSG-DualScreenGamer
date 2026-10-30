@@ -4,56 +4,74 @@
     "description": "Dual-screen mods, layouts and texture packs for the AYN Thor and every two-screen setup — with an API emulators can install from."
   },
   "nav": {
-    "home": "Home",
+    "mods": "Mods",
+    "games": "Games",
     "developers": "Developers",
     "submit": "Add a mod",
-    "back": "Back",
-    "github": "GitHub"
+    "search": "Search mods"
+  },
+  "footer": {
+    "line": "DSG links to the authors' own GitHub releases. Mods belong to their authors."
   },
   "home": {
-    "welcomeTitle": "Two screens. Every mod.",
-    "welcomeBody": "DSG collects dual-screen mods, layouts and texture packs from their authors' GitHub releases — and gives emulators an API to install them in one tap.",
+    "title": "Two screens. Every mod.",
+    "lead": "Dual-screen layouts, texture packs and companion apps for the AYN Thor and any two-screen setup — collected from their authors' GitHub releases, installable by emulators through one API.",
+    "search": "Search a game or a mod",
+    "searchButton": "Search",
     "stats": "{games, plural, one {# game} other {# games}} · {mods, plural, one {# mod} other {# mods}}",
-    "search": "Search games and mods",
-    "filterAll": "All",
-    "filterGames": "Games",
-    "filterMods": "Mods",
-    "empty": "Nothing here yet.",
-    "hint": "Select to preview · select again to open",
-    "hintPad": "D-pad to move · A to open · B to go back",
-    "open": "Open"
+    "latest": "Latest mods",
+    "allMods": "All mods",
+    "games": "Games",
+    "allGames": "All games"
   },
   "types": {
-    "dual_screen_layout": "Dual-screen layout",
-    "texture_pack": "Texture pack",
-    "patch": "Patch",
-    "companion_app": "Companion app",
-    "shader": "Shader",
-    "utility": "Utility",
+    "label": "Mod types",
+    "all": "All",
+    "dual_screen_layout": "Layouts",
+    "texture_pack": "Texture packs",
+    "patch": "Patches",
+    "companion_app": "Companion apps",
+    "shader": "Shaders",
+    "utility": "Utilities",
     "game": "Game"
   },
+  "mods": {
+    "title": "All mods",
+    "search": "Search mods",
+    "count": "{count, plural, =0 {No mods} one {# mod} other {# mods}}",
+    "none": "No mod matches these filters."
+  },
+  "games": {
+    "title": "Games",
+    "search": "Search games",
+    "allPlatforms": "All platforms",
+    "count": "{count, plural, =0 {No games} one {# game} other {# games}}",
+    "none": "No game matches these filters."
+  },
   "game": {
+    "crumb": "Games",
     "mods": "{count, plural, =0 {No mods yet} one {# mod} other {# mods}}",
-    "identifiers": "Recognised by",
-    "platforms": "Platforms",
-    "noMods": "No mods for this game yet. Made one? Add it to DSG.",
-    "metadata": "Metadata from IGDB"
+    "identifiers": "Recognised by {count, plural, one {# identifier} other {# identifiers}}",
+    "noMods": "No mods for this game yet.",
+    "addOne": "Made one? Add it.",
+    "metadata": "Title metadata from IGDB"
   },
   "mod": {
+    "crumb": "Mods",
     "by": "by {authors}",
+    "preview": "On two screens",
+    "gallery": "Screenshots",
+    "mediaSource": "Images are loaded from the mod's GitHub page.",
     "latest": "Latest release",
     "noRelease": "No release with matching files has been found yet.",
     "prerelease": "Pre-release",
-    "download": "Download",
-    "sha256": "SHA-256",
-    "noHash": "no checksum published",
+    "sha256": "Copy SHA-256",
+    "noHash": "no checksum",
     "install": "Install steps",
     "requires": "Requirements",
     "targets": "Works with",
-    "devices": "Designed for",
     "anyEmulator": "any emulator",
     "license": "License",
-    "source": "Source",
     "stars": "{count} stars",
     "forDevs": "Fetch with the API",
     "allReleases": "All releases",
@@ -62,8 +80,16 @@
       "copy": "Copy {asset} to {to}",
       "install_apk": "Install the {asset} APK",
       "note": "{text}"
-    },
-    "updated": "Updated {date}"
+    }
+  },
+  "preview": {
+    "title": "Top and bottom screen",
+    "single": "Screenshot from the mod's page",
+    "top": "Top screen",
+    "bottom": "Bottom screen",
+    "noBottom": "Bottom screen preview not provided",
+    "prev": "Previous",
+    "next": "Next"
   },
   "dev": {
     "title": "Build DSG into your emulator",
@@ -74,6 +100,15 @@
     "step2": "Call /v1/lookup with it, plus your emulator id, version and the device.",
     "step3": "Download the assets from the author's GitHub release and verify the sha256.",
     "step4": "Run the install steps, mapping path variables such as {var} to your folders.",
+    "endpoints": "Endpoints",
+    "ep": {
+      "lookup": "Game + compatible mods from a hash, title id, serial or store id",
+      "latest": "Download URLs, sizes, sha256 and install steps",
+      "mods": "Filter by game, type, platform, emulator, device",
+      "games": "Search games and their identifiers",
+      "catalog": "Ids to use in filters",
+      "index": "Everything at once, for offline caches (ETag)"
+    },
     "userAgent": "Send a User-Agent naming your app. The API is read-only, CORS-enabled and rate limited.",
     "offline": "Prefer an offline cache? Mirror /v1/index.json and revalidate with If-None-Match."
   },
@@ -84,14 +119,18 @@
     "step2": "Fork the DSG repository and add registry/mods/<your-mod>.yaml (and the game under registry/games/ if it is new).",
     "step3": "Run pnpm registry:validate, then open a pull request. CI checks it automatically.",
     "step4": "Once merged, new releases you publish appear on DSG automatically.",
+    "images": "Screenshots",
+    "imagesBody": "DSG picks up the images in your README, your release notes and image files attached to the release. Name a pair like map-top.png and map-bottom.png (or list them under previews) and they are shown together on the two-screen preview.",
     "example": "Example manifest",
     "guide": "Read the manifest guide"
   },
   "notFound": {
     "title": "Nothing on this cartridge",
-    "body": "The page you were looking for doesn't exist."
+    "body": "The page you were looking for doesn't exist.",
+    "home": "Back to DSG"
   },
   "error": {
-    "api": "The DSG API is not reachable right now."
+    "api": "The DSG API is not reachable right now.",
+    "retry": "Try again"
   }
 }

@@ -1,46 +1,77 @@
+import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import { HomeMenu, type MenuItem } from '@/components/HomeMenu';
+import { GameCard, ModCard, Panel } from '@/components/Cards';
+import { DualScreenPreview } from '@/components/DualScreenPreview';
+import { Icon } from '@/components/Icon';
+import { TypeTabs } from '@/components/TypeTabs';
 import { api } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const tt = await getTranslations('types');
+  const t = await getTranslations('home');
   const index = await api.index();
-  const platformName = new Map(index.platforms.map((p) => [p.id, p.name]));
-  const deviceName = new Map(index.devices.map((d) => [d.id, d.name]));
-  const gameById = new Map(index.games.map((g) => [g.id, g]));
+  const platformNames = new Map(index.platforms.map((p) => [p.id, p.name]));
+  const gameTitle = new Map(index.games.map((g) => [g.id, g.title]));
+  // Spotlight: the most recently released mod that shows both screens
+  const featured = index.mods.find((m) => m.previews.length) ?? index.mods.find((m) => m.media.length);
 
-  const mods: MenuItem[] = index.mods.map((m) => {
-    const game = m.game_id ? gameById.get(m.game_id) : undefined;
-    return {
-      key: `mod:${m.id}`,
-      kind: 'mod',
-      id: m.id,
-      title: m.name,
-      type: m.type,
-      cover: m.screenshots[0] ?? game?.cover_url ?? null,
-      href: `/mods/${m.id}`,
-      summary: m.summary,
-      gameTitle: game?.title,
-      version: m.latest_release?.version,
-      meta: [
-        ...new Set(m.targets.map((t) => platformName.get(t.platform) ?? t.platform)),
-        ...m.devices.map((d) => deviceName.get(d) ?? d),
-      ],
-    };
-  });
-  const games: MenuItem[] = index.games.map((g) => ({
-    key: `game:${g.id}`,
-    kind: 'game',
-    id: g.id,
-    title: g.title,
-    type: 'game',
-    cover: g.cover_url,
-    href: `/games/${g.id}`,
-    summary: g.summary ?? tt('game'),
-    meta: g.platforms.map((p) => platformName.get(p) ?? p),
-  }));
+  return (
+    <>
+      <section className="hero">
+        <div className="hero-text">
+          <h1>{t('title')}</h1>
+          <p className="lead">{t('lead')}</p>
+          <form action="/mods" className="hero-search" role="search">
+            <Icon name="search" size={18} />
+            <input type="search" name="q" placeholder={t('search')} aria-label={t('search')} data-nav />
+            <button className="btn btn-primary" data-nav>
+              {t('searchButton')}
+            </button>
+          </form>
+          <p className="hero-stats">{t('stats', { games: index.games.length, mods: index.mods.length })}</p>
+        </div>
+        {featured ? (
+          <div className="hero-feature">
+            <DualScreenPreview previews={featured.previews} fallback={featured.media[0]} />
+            <Link href={`/mods/${featured.id}`} className="hero-feature-link" data-nav>
+              {featured.name} <Icon name="next" size={14} />
+            </Link>
+          </div>
+        ) : null}
+      </section>
 
-  return <HomeMenu items={[...mods, ...games]} stats={{ games: games.length, mods: mods.length }} />;
+      <TypeTabs />
+
+      <Panel
+        title={t('latest')}
+        action={
+          <Link href="/mods" className="panel-link" data-nav>
+            {t('allMods')}
+          </Link>
+        }
+      >
+        <div className="card-grid">
+          {index.mods.slice(0, 12).map((m) => (
+            <ModCard key={m.id} mod={m} gameTitle={m.game_id ? gameTitle.get(m.game_id) : undefined} platformNames={platformNames} />
+          ))}
+        </div>
+      </Panel>
+
+      <Panel
+        title={t('games')}
+        action={
+          <Link href="/games" className="panel-link" data-nav>
+            {t('allGames')}
+          </Link>
+        }
+      >
+        <div className="card-grid card-grid-games">
+          {index.games.slice(0, 12).map((g) => (
+            <GameCard key={g.id} game={g} />
+          ))}
+        </div>
+      </Panel>
+    </>
+  );
 }

@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
-import { Console } from '@/components/Console';
 import { Icon } from '@/components/Icon';
 
 export const metadata: Metadata = { title: 'Add a mod' };
@@ -18,6 +17,8 @@ devices: [ayn-thor]
 source:
   github: you/my-game-thor-layout
   assets: [{ role: main, pattern: "*.zip" }]
+previews:   # optional: screenshots are also found in your README
+  - { top: shots/map-top.png, bottom: shots/map-bottom.png }
 targets:
   - { platform: 3ds, emulator: azahar }
 install:
@@ -26,36 +27,35 @@ install:
 export default async function Submit() {
   const t = await getTranslations('submit');
 
-  const top = (
-    <article className="hero hero-text">
-      <div className="hero-body">
-        <span className="badge badge-patch">Registry</span>
-        <h1 className="hero-title">{t('title')}</h1>
-        <p className="hero-summary">{t('lead')}</p>
+  return (
+    <article className="doc">
+      <header className="page-head page-head-doc">
+        <span className="badge type-patch">Registry</span>
+        <h1>{t('title')}</h1>
+        <p className="lead">{t('lead')}</p>
         <a href={`${REPO}/blob/main/docs/manifest.md`} className="btn btn-primary" data-nav rel="noopener">
           <Icon name="external" size={16} />
           {t('guide')}
         </a>
-      </div>
-    </article>
-  );
-
-  const bottom = (
-    <div className="panel">
-      <ol className="steps">
-        <li>{t('step1')}</li>
-        <li>{t('step2')}</li>
-        <li>{t('step3')}</li>
-        <li>{t('step4')}</li>
-      </ol>
-      <section className="section">
+      </header>
+      <section className="sheet">
+        <ol className="steps">
+          <li>{t('step1')}</li>
+          <li>{t('step2')}</li>
+          <li>{t('step3')}</li>
+          <li>{t('step4')}</li>
+        </ol>
+      </section>
+      <section className="sheet">
+        <h2>{t('images')}</h2>
+        <p>{t('imagesBody')}</p>
+      </section>
+      <section className="sheet">
         <h2>{t('example')}</h2>
         <pre className="code code-block">
           <code>{EXAMPLE}</code>
         </pre>
       </section>
-    </div>
+    </article>
   );
-
-  return <Console top={top} bottom={bottom} back="/" />;
 }

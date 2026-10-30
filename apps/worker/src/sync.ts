@@ -4,6 +4,7 @@ import {
   emulators,
   gameIdentifiers,
   games,
+  modMedia,
   modReleases,
   mods,
   modTargets,
@@ -14,9 +15,10 @@ import {
   type Db,
 } from '@dsg/db';
 import { normalizeIdentifier } from '@dsg/schema';
-import { and, eq, isNull, lt, notInArray, or } from 'drizzle-orm';
-import { GitHubClient, resolveReleases } from './github.ts';
+import { and, desc, eq, isNull, like, lt, ne, notInArray, or } from 'drizzle-orm';
+import { GitHubClient, resolveReleases, type GhAsset } from './github.ts';
 import { IgdbClient, igdbCoverUrl, type TokenStore } from './igdb.ts';
+import { autoCandidates, buildAutoMedia, extractImages, manifestMedia, rawUrl, resolveImageUrl } from './media.ts';
 import type { Registry } from './registry.ts';
 
 export type SyncOptions = {
@@ -97,13 +99,15 @@ export async function syncRegistry(db: Db, reg: Registry): Promise<void> {
         license: m.license,
         homepage: m.homepage ?? null,
         tags: m.tags,
-        screenshots: m.screenshots,
         requires: m.requires,
         devices: m.devices,
         source: m.source,
         install: m.install,
       };
       await tx.insert(mods).values(row).onConflictDoUpdate({ target: mods.id, set: { ...row, updatedAt: new Date() } });
+      await tx.delete(modMedia).where(and(eq(modMedia.modId, m.id), eq(modMedia.source, 'manifest')));
+      const media = manifestMedia(m);
+      if (media.length) await tx.insert(modMedia).values(media.map((r) => ({ ...r, modId: m.id })));
       await tx.delete(modTargets).where(eq(modTargets.modId, m.id));
       await tx.insert(modTargets).values(
         m.targets.map((t) => ({
@@ -117,6 +121,20 @@ export async function syncRegistry(db: Db, reg: Registry): Promise<void> {
       );
     }
 
+    // Forget cached ETags/signatures of removed mods, so re-adding one starts from scratch
+    const removed = await tx.select({ id: mods.id }).from(mods).where(notInArray(mods.id, reg.mods.map((m) => m.id)));
+    for (const { id } of removed) {
+      await tx
+        .delete(syncState)
+        .where(
+          or(
+            like(syncState.key, `gh_etag:${id}:%`),
+            like(syncState.key, `readme:${id}:%`),
+            eq(syncState.key, `release_images:${id}`),
+            eq(syncState.key, `media_sig:${id}`),
+          ),
+        );
+    }
     // notInArray with an empty list matches everything, which is what an empty registry means
     await tx.delete(mods).where(notInArray(mods.id, reg.mods.map((m) => m.id)));
     await tx.delete(games).where(notInArray(games.id, reg.games.map((g) => g.id)));
@@ -188,6 +206,11 @@ export async function syncReleases(db: Db, reg: Registry, opts: SyncOptions = {}
           .where(eq(mods.id, m.id));
       });
 
+      // Remember the images attached to the newest release: the media step looks at them
+      const newestTag = resolved[0]?.tag;
+      const newest = res.releases.find((r) => r.tag_name === newestTag) ?? res.releases.find((r) => !r.draft);
+      await setState(db, `release_images:${m.id}`, (newest?.assets ?? []).map((a) => ({ name: a.name, browser_download_url: a.browser_download_url })));
+
       const repo = await gh.repo(m.source.github).catch(() => null);
       if (repo) await db.update(mods).set({ stars: repo.stargazers_count }).where(eq(mods.id, m.id));
       if (res.etag) await setState(db, etagKey, res.etag);
@@ -195,6 +218,71 @@ export async function syncReleases(db: Db, reg: Registry, opts: SyncOptions = {}
       log(`releases ${m.id}: ${resolved.length} usable release(s)`);
     } catch (e) {
       errors.push(`releases ${m.id}: ${(e as Error).message}`);
+    }
+  }
+  return { updated, errors };
+}
+
+// Automatic media sits after the manifest's own images
+const AUTO_POSITION = 1000;
+const AUTO_PAIR = 1000;
+
+/**
+ * Finds screenshots in the README, the latest release notes and image assets.
+ * Only re-probes images when the candidate list changed since the last run.
+ */
+export async function syncMedia(db: Db, reg: Registry, opts: SyncOptions = {}): Promise<{ updated: number; errors: string[] }> {
+  const gh = opts.github ?? new GitHubClient();
+  const errors: string[] = [];
+  let updated = 0;
+  for (const m of reg.mods) {
+    const auto = and(eq(modMedia.modId, m.id), ne(modMedia.source, 'manifest'));
+    if (!m.source.auto_media) {
+      await db.delete(modMedia).where(auto);
+      continue;
+    }
+    try {
+      const readmeKey = `readme:${m.id}:${m.source.github}`;
+      const cached = await getState<{ etag: string | null; images: { url: string; alt?: string }[] }>(db, readmeKey);
+      const readme = await gh.readme(m.source.github, cached?.etag ?? undefined);
+      let readmeImages = cached?.images ?? [];
+      if (readme === null) readmeImages = [];
+      else if (!readme.notModified) {
+        readmeImages = extractImages(readme.text).flatMap((i) => {
+          const url = resolveImageUrl(i.url, readme.downloadUrl);
+          return url ? [{ url, alt: i.alt }] : [];
+        });
+        await setState(db, readmeKey, { etag: readme.etag, images: readmeImages });
+      }
+
+      const [latest] = await db
+        .select({ changelog: modReleases.changelog })
+        .from(modReleases)
+        .where(eq(modReleases.modId, m.id))
+        .orderBy(desc(modReleases.publishedAt))
+        .limit(1);
+      const assets = (await getState<Pick<GhAsset, 'name' | 'browser_download_url'>[]>(db, `release_images:${m.id}`)) ?? [];
+      const candidates = autoCandidates({
+        releaseNotes: latest?.changelog ?? null,
+        releaseNotesBase: rawUrl(m.source.github, 'README.md'),
+        readme: readmeImages,
+        assets,
+        exclude: manifestMedia(m).map((r) => r.url),
+      });
+
+      const sigKey = `media_sig:${m.id}`;
+      const sig = createHash('sha1').update(JSON.stringify(candidates)).digest('hex');
+      if ((await getState<string>(db, sigKey)) === sig) continue;
+
+      const rows = await buildAutoMedia(candidates, (url) => gh.imageHead(url), AUTO_POSITION, AUTO_PAIR);
+      await db.transaction(async (tx) => {
+        await tx.delete(modMedia).where(auto);
+        if (rows.length) await tx.insert(modMedia).values(rows.map((r) => ({ ...r, modId: m.id })));
+      });
+      await setState(db, sigKey, sig);
+      updated++;
+    } catch (e) {
+      errors.push(`media ${m.id}: ${(e as Error).message}`);
     }
   }
   return { updated, errors };
@@ -243,6 +331,9 @@ export async function runSync(db: Db, reg: Registry, opts: SyncOptions = {}) {
     const rel = await syncReleases(db, reg, { ...opts, log });
     stats.releasesUpdated = rel.updated;
     errors.push(...rel.errors);
+    const media = await syncMedia(db, reg, opts);
+    stats.mediaUpdated = media.updated;
+    errors.push(...media.errors);
     const igdb = opts.igdb === undefined ? IgdbClient.fromEnv(dbTokenStore(db)) : opts.igdb;
     if (igdb) {
       const meta = await syncMetadata(db, reg, igdb);

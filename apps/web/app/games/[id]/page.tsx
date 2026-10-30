@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
-import { Console } from '@/components/Console';
-import { Icon } from '@/components/Icon';
+import { Empty, ModCard, Panel } from '@/components/Cards';
 import { TileArt } from '@/components/Tile';
 import { api } from '@/lib/api';
 
@@ -21,78 +20,61 @@ export default async function GamePage({ params }: Props) {
   const [game, mods, index] = await Promise.all([api.game(id), api.modsForGame(id), api.index()]);
   if (!game) notFound();
   const t = await getTranslations('game');
-  const tt = await getTranslations('types');
-  const platformName = new Map(index.platforms.map((p) => [p.id, p.name]));
+  const platformNames = new Map(index.platforms.map((p) => [p.id, p.name]));
 
-  const top = (
-    <article className="hero">
-      {game.cover_url ? <div className="hero-backdrop" style={{ backgroundImage: `url(${game.cover_url})` }} aria-hidden /> : null}
-      <div className="hero-art">
-        <TileArt id={game.id} type="game" cover={game.cover_url} title={game.title} />
-      </div>
-      <div className="hero-body">
-        <span className="badge badge-game">{tt('game')}</span>
-        <h1 className="hero-title">
-          {game.title}
-          {game.release_year ? <span className="hero-year"> {game.release_year}</span> : null}
-        </h1>
-        {game.summary ? <p className="hero-summary">{game.summary}</p> : null}
-        <div className="chips">
-          {game.platforms.map((p) => (
-            <span className="chip" key={p}>
-              {platformName.get(p) ?? p}
-            </span>
-          ))}
-          <span className="chip chip-strong">{t('mods', { count: mods.length })}</span>
-        </div>
-        {game.igdb_id ? <p className="fineprint">{t('metadata')}</p> : null}
-      </div>
-    </article>
-  );
-
-  const bottom = (
-    <div className="panel">
-      {mods.length ? (
-        <ul className="list">
-          {mods.map((m) => (
-            <li key={m.id}>
-              <Link href={`/mods/${m.id}`} className="row" data-nav>
-                <span className="row-icon">
-                  <Icon name={m.type} />
-                </span>
-                <span className="row-main">
-                  <strong>{m.name}</strong>
-                  <span>{m.summary}</span>
-                </span>
-                <span className="row-side">
-                  <span className={`badge badge-${m.type}`}>{tt(m.type)}</span>
-                  {m.latest_release ? <span className="muted">v{m.latest_release.version}</span> : null}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="empty">
-          {t('noMods')} <Link href="/submit">→</Link>
-        </p>
-      )}
-      {game.identifiers.length ? (
-        <section className="section">
-          <h2>{t('identifiers')}</h2>
-          <ul className="kv">
-            {game.identifiers.map((i) => (
-              <li key={`${i.kind}:${i.value}`}>
-                <span>{i.kind}</span>
-                <code>{i.value}</code>
-                {i.region ? <span className="muted">{i.region}</span> : null}
+  return (
+    <>
+      <nav className="crumbs">
+        <Link href="/games">{t('crumb')}</Link>
+      </nav>
+      <header className="item-head item-head-game">
+        <span className="item-icon item-cover">
+          <TileArt id={game.id} type="game" cover={game.cover_url} title={game.title} />
+        </span>
+        <div className="item-title">
+          <h1>
+            {game.title}
+            {game.release_year ? <span className="muted"> ({game.release_year})</span> : null}
+          </h1>
+          <ul className="chips">
+            {game.platforms.map((p) => (
+              <li className="chip" key={p}>
+                {platformNames.get(p) ?? p}
               </li>
             ))}
           </ul>
-        </section>
-      ) : null}
-    </div>
-  );
+          {game.summary ? <p className="item-summary">{game.summary}</p> : null}
+          {game.identifiers.length ? (
+            <details className="ids">
+              <summary data-nav>{t('identifiers', { count: game.identifiers.length })}</summary>
+              <ul className="kv">
+                {game.identifiers.map((i) => (
+                  <li key={`${i.kind}:${i.value}`}>
+                    <span>{i.kind}</span>
+                    <code>{i.value}</code>
+                    {i.region ? <span className="muted">{i.region}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+          {game.igdb_id ? <p className="fineprint">{t('metadata')}</p> : null}
+        </div>
+      </header>
 
-  return <Console top={top} bottom={bottom} back="/" />;
+      <Panel title={t('mods', { count: mods.length })}>
+        {mods.length ? (
+          <div className="card-grid">
+            {mods.map((m) => (
+              <ModCard key={m.id} mod={m} platformNames={platformNames} />
+            ))}
+          </div>
+        ) : (
+          <Empty>
+            {t('noMods')} <Link href="/submit">{t('addOne')}</Link>
+          </Empty>
+        )}
+      </Panel>
+    </>
+  );
 }

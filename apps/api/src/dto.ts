@@ -72,6 +72,20 @@ export const InstallStepDto = z
   })
   .openapi('InstallStep');
 
+export const MediaDto = z
+  .object({
+    url: z.string(),
+    width: z.number().nullable(),
+    height: z.number().nullable(),
+    source: z.enum(['manifest', 'release', 'readme', 'asset']).openapi({ description: 'Where DSG found the image' }),
+    caption: z.string().nullable(),
+  })
+  .openapi('Media');
+
+export const PreviewDto = z
+  .object({ top: MediaDto, bottom: MediaDto, caption: z.string().nullable() })
+  .openapi('DualScreenPreview', { description: 'What the two screens show at the same moment' });
+
 export const ModDto = z
   .object({
     id: z.string().openapi({ example: 'stardew-valley-dual-screen' }),
@@ -85,7 +99,9 @@ export const ModDto = z
     homepage: z.string().nullable(),
     source_repo: z.string().openapi({ example: 'JoeCorrell/AYN-Thor-Dualscreen-Mods' }),
     tags: z.array(z.string()),
-    screenshots: z.array(z.string()),
+    cover_url: z.string().nullable().openapi({ description: 'Best image for a card: manifest screenshot, preview, found image or game cover' }),
+    media: z.array(MediaDto).openapi({ description: 'Gallery images (not part of a preview pair)' }),
+    previews: z.array(PreviewDto),
     requires: z.array(z.string()),
     devices: z.array(z.string()),
     stars: z.number().nullable(),
@@ -139,3 +155,4 @@ export const page = <T extends z.ZodTypeAny>(item: T) =>
 export type GameDto = z.infer<typeof GameDto>;
 export type ModDto = z.infer<typeof ModDto>;
 export type ReleaseDto = z.infer<typeof ReleaseDto>;
+export type MediaDto = z.infer<typeof MediaDto>;

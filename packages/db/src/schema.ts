@@ -82,6 +82,7 @@ export type ModSource = {
   github: string;
   assets: { role: string; pattern: string }[];
   prereleases: boolean;
+  auto_media: boolean;
   tag_pattern?: string;
 };
 
@@ -98,7 +99,6 @@ export const mods = pgTable(
     license: text('license').notNull(),
     homepage: text('homepage'),
     tags: text('tags').array().notNull().default(sql`'{}'`),
-    screenshots: text('screenshots').array().notNull().default(sql`'{}'`),
     requires: text('requires').array().notNull().default(sql`'{}'`),
     devices: text('devices').array().notNull().default(sql`'{}'`),
     source: jsonb('source').$type<ModSource>().notNull(),
@@ -160,6 +160,28 @@ export const releaseAssets = pgTable(
     downloadCount: integer('download_count'),
   },
   (t) => [uniqueIndex('release_assets_release_name_uq').on(t.releaseId, t.name)],
+);
+
+export const modMedia = pgTable(
+  'mod_media',
+  {
+    id: serial('id').primaryKey(),
+    modId: text('mod_id')
+      .notNull()
+      .references(() => mods.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    /** manifest | release | readme | asset */
+    source: text('source').notNull(),
+    /** gallery | top | bottom */
+    kind: text('kind').notNull(),
+    /** Index of the top/bottom pair this image belongs to. */
+    pair: smallint('pair'),
+    caption: text('caption'),
+    width: integer('width'),
+    height: integer('height'),
+    position: smallint('position').notNull(),
+  },
+  (t) => [index('mod_media_mod_idx').on(t.modId)],
 );
 
 /** Small key/value store: GitHub ETags, IGDB token, etc. */
