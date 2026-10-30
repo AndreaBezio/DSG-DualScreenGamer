@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "title": "DSG — Dual Screen Gamer",
+    "description": "Dual-screen mods, layouts and texture packs for the AYN Thor and every two-screen setup — with an API emulators can install from."
+  },
+  "nav": {
+    "home": "Home",
+    "developers": "Developers",
+    "submit": "Add a mod",
+    "back": "Back",
+    "github": "GitHub"
+  },
+  "home": {
+    "welcomeTitle": "Two screens. Every mod.",
+    "welcomeBody": "DSG collects dual-screen mods, layouts and texture packs from their authors' GitHub releases — and gives emulators an API to install them in one tap.",
+    "stats": "{games, plural, one {# game} other {# games}} · {mods, plural, one {# mod} other {# mods}}",
+    "search": "Search games and mods",
+    "filterAll": "All",
+    "filterGames": "Games",
+    "filterMods": "Mods",
+    "empty": "Nothing here yet.",
+    "hint": "Select to preview · select again to open",
+    "hintPad": "D-pad to move · A to open · B to go back",
+    "open": "Open"
+  },
+  "types": {
+    "dual_screen_layout": "Dual-screen layout",
+    "texture_pack": "Texture pack",
+    "patch": "Patch",
+    "companion_app": "Companion app",
+    "shader": "Shader",
+    "utility": "Utility",
+    "game": "Game"
+  },
+  "game": {
+    "mods": "{count, plural, =0 {No mods yet} one {# mod} other {# mods}}",
+    "identifiers": "Recognised by",
+    "platforms": "Platforms",
+    "noMods": "No mods for this game yet. Made one? Add it to DSG.",
+    "metadata": "Metadata from IGDB"
+  },
+  "mod": {
+    "by": "by {authors}",
+    "latest": "Latest release",
+    "noRelease": "No release with matching files has been found yet.",
+    "prerelease": "Pre-release",
+    "download": "Download",
+    "sha256": "SHA-256",
+    "noHash": "no checksum published",
+    "install": "Install steps",
+    "requires": "Requirements",
+    "targets": "Works with",
+    "devices": "Designed for",
+    "anyEmulator": "any emulator",
+    "license": "License",
+    "source": "Source",
+    "stars": "{count} stars",
+    "forDevs": "Fetch with the API",
+    "allReleases": "All releases",
+    "step": {
+      "extract": "Extract {asset} to {to}",
+      "copy": "Copy {asset} to {to}",
+      "install_apk": "Install the {asset} APK",
+      "note": "{text}"
+    },
+    "updated": "Updated {date}"
+  },
+  "dev": {
+    "title": "Build DSG into your emulator",
+    "lead": "One request tells you which mods exist for the game the user is about to boot — with download URLs, checksums and machine-readable install steps.",
+    "docs": "Full API reference",
+    "steps": "How a client integrates",
+    "step1": "Identify the game: ROM hash (sha1, md5, crc32), title id, disc serial or store id.",
+    "step2": "Call /v1/lookup with it, plus your emulator id, version and the device.",
+    "step3": "Download the assets from the author's GitHub release and verify the sha256.",
+    "step4": "Run the install steps, mapping path variables such as {var} to your folders.",
+    "userAgent": "Send a User-Agent naming your app. The API is read-only, CORS-enabled and rate limited.",
+    "offline": "Prefer an offline cache? Mirror /v1/index.json and revalidate with If-None-Match."
+  },
+  "submit": {
+    "title": "Add your mod to DSG",
+    "lead": "Mods are listed through small YAML manifests reviewed as pull requests. DSG never re-hosts your files: it links to your GitHub releases.",
+    "step1": "Publish your mod as a GitHub release with the files attached.",
+    "step2": "Fork the DSG repository and add registry/mods/<your-mod>.yaml (and the game under registry/games/ if it is new).",
+    "step3": "Run pnpm registry:validate, then open a pull request. CI checks it automatically.",
+    "step4": "Once merged, new releases you publish appear on DSG automatically.",
+    "example": "Example manifest",
+    "guide": "Read the manifest guide"
+  },
+  "notFound": {
+    "title": "Nothing on this cartridge",
+    "body": "The page you were looking for doesn't exist."
+  },
+  "error": {
+    "api": "The DSG API is not reachable right now."
+  }
+}

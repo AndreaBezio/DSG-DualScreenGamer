@@ -1,0 +1,82 @@
+# DSG stack. From ~/Progetti/DSG-DualScreenGamer:  cp .env.example .env  &&  docker compose up -d --build
+name: dsg
+
+x-server: &server
+  image: dsg-server:latest
+  build: { context: ., target: server }
+  restart: unless-stopped
+  environment: &server-env
+    DATABASE_URL: postgres://${POSTGRES_USER:-dsg}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-dsg}
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dsg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-dsg}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 20
+
+  migrate:
+    <<: *server
+    restart: "no"
+    command: ["node", "--import", "tsx", "packages/db/src/migrate.ts"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    <<: *server
+    environment:
+      <<: *server-env
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:3101}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-120}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+    ports:
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-3101}:3001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/healthz"]
+      interval: 10s
+      retries: 10
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    <<: *server
+    command: ["node", "--import", "tsx", "apps/worker/src/index.ts"]
+    environment:
+      <<: *server-env
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      IGDB_CLIENT_ID: ${IGDB_CLIENT_ID:-}
+      IGDB_CLIENT_SECRET: ${IGDB_CLIENT_SECRET:-}
+      SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-30}
+      SYNC_HASH_MAX_BYTES: ${SYNC_HASH_MAX_BYTES:-0}
+      REGISTRY_GIT_URL: ${REGISTRY_GIT_URL:-}
+      REGISTRY_GIT_BRANCH: ${REGISTRY_GIT_BRANCH:-main}
+    volumes:
+      - registry:/data
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    image: dsg-web:latest
+    build: { context: ., target: web }
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:3001
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:3101}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://localhost:3100}
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3100}:3000"
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  registry:

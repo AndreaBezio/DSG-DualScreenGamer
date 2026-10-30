@@ -1,0 +1,22 @@
+# After a manifest is merged, ask the production worker to sync now instead of waiting for its schedule.
+# Needs two repository secrets: DSG_API_URL (e.g. https://api.example.org) and DSG_ADMIN_TOKEN.
+name: Registry sync
+
+on:
+  push:
+    branches: [main]
+    paths: ["registry/**"]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request sync
+        env:
+          DSG_API_URL: ${{ secrets.DSG_API_URL }}
+          DSG_ADMIN_TOKEN: ${{ secrets.DSG_ADMIN_TOKEN }}
+        run: |
+          if [ -z "$DSG_API_URL" ] || [ -z "$DSG_ADMIN_TOKEN" ]; then
+            echo "DSG_API_URL / DSG_ADMIN_TOKEN not set: skipping"; exit 0
+          fi
+          curl -fsS -X POST -H "Authorization: Bearer $DSG_ADMIN_TOKEN" "$DSG_API_URL/admin/sync"
