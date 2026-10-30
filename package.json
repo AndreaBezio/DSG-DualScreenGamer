@@ -1,0 +1,25 @@
+{
+  "name": "dsg",
+  "private": true,
+  "description": "DSG — Dual Screen Gamer: catalog and API for dual-screen mods and texture packs",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev:api": "pnpm --filter @dsg/api dev",
+    "dev:web": "pnpm --filter @dsg/web dev",
+    "db:generate": "pnpm --filter @dsg/db generate",
+    "db:migrate": "pnpm --filter @dsg/db migrate",
+    "registry:validate": "pnpm --filter @dsg/worker validate",
+    "registry:schema": "pnpm --filter @dsg/schema json-schema",
+    "worker:sync": "pnpm --filter @dsg/worker sync",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
+  }
+}

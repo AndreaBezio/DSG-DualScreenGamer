@@ -1,0 +1,12 @@
+# Dual-screen hardware. Resolutions: primary (top) screen first.
+- id: ayn-thor
+  name: AYN Thor
+  manufacturer: AYN
+  os: android
+  screens: 2
+  resolutions: ["1920x1080", "1240x1080"]
+- id: dual-monitor-pc
+  name: Dual-monitor PC
+  manufacturer: Generic
+  os: windows
+  screens: 2

@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../schema/mod.schema.json
+id: heimdall-thor-assistant
+name: Heimdall
+type: utility
+summary: General-purpose lower-screen assistant for the AYN Thor — macros, touchpad, maps and guides next to any game.
+description: |
+  Keeps macros, touchpad and right-stick controls, maps, guides, image canvases,
+  magnification and quick actions on the lower screen while the game runs on the top one.
+  Alpha pre-release: not tied to a specific game, firmware or emulator.
+authors:
+  - { name: mastercook777, github: mastercook777 }
+license: unknown
+homepage: https://github.com/mastercook777/Heimdall-AYN-Thor-Assistant
+tags: [overlay, macros, guides]
+devices: [ayn-thor]
+source:
+  github: mastercook777/Heimdall-AYN-Thor-Assistant
+  prereleases: true
+  assets:
+    - { role: main, pattern: "*.apk" }
+targets:
+  - { platform: android, emulator: native }
+install:
+  - { action: install_apk, asset: main }

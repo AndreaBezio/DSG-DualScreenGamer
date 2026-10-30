@@ -1,0 +1,141 @@
+import { z } from '@hono/zod-openapi';
+import { IDENTIFIER_KINDS, MOD_TYPES } from '@dsg/schema';
+
+export const IdentifierDto = z
+  .object({
+    kind: z.enum(IDENTIFIER_KINDS),
+    value: z.string(),
+    platform: z.string().nullable(),
+    region: z.string().nullable(),
+    label: z.string().nullable(),
+  })
+  .openapi('Identifier');
+
+export const GameDto = z
+  .object({
+    id: z.string().openapi({ example: 'stardew-valley' }),
+    title: z.string(),
+    platforms: z.array(z.string()),
+    igdb_id: z.number().nullable(),
+    summary: z.string().nullable(),
+    cover_url: z.string().nullable(),
+    release_year: z.number().nullable(),
+    identifiers: z.array(IdentifierDto),
+    mod_count: z.number(),
+  })
+  .openapi('Game');
+
+export const AssetDto = z
+  .object({
+    role: z.string().openapi({ description: 'main, companion_apk, optional or source; install steps refer to it' }),
+    name: z.string(),
+    url: z.string().openapi({ description: "Direct download from the author's GitHub release" }),
+    size: z.number(),
+    sha256: z.string().nullable().openapi({ description: 'Verify after download. Null when GitHub did not publish a digest.' }),
+    content_type: z.string().nullable(),
+  })
+  .openapi('Asset');
+
+export const ReleaseDto = z
+  .object({
+    tag: z.string(),
+    version: z.string(),
+    name: z.string().nullable(),
+    prerelease: z.boolean(),
+    published_at: z.string(),
+    html_url: z.string(),
+    changelog: z.string().nullable(),
+    assets: z.array(AssetDto),
+  })
+  .openapi('Release');
+
+export const TargetDto = z
+  .object({
+    platform: z.string(),
+    emulator: z.string().nullable(),
+    min_version: z.string().nullable(),
+    max_version: z.string().nullable(),
+    identifiers: z.array(z.object({ kind: z.string(), value: z.string() })),
+  })
+  .openapi('Target');
+
+export const InstallStepDto = z
+  .object({
+    action: z.enum(['extract', 'copy', 'install_apk', 'note']),
+    asset: z.string().optional(),
+    to: z
+      .string()
+      .optional()
+      .openapi({ description: 'Path template, e.g. {emulator.textures_dir}/{game.title_id}', example: '{game.mods_dir}' }),
+    from: z.string().optional(),
+    text: z.string().optional(),
+  })
+  .openapi('InstallStep');
+
+export const ModDto = z
+  .object({
+    id: z.string().openapi({ example: 'stardew-valley-dual-screen' }),
+    name: z.string(),
+    type: z.enum(MOD_TYPES),
+    summary: z.string(),
+    description: z.string().nullable(),
+    game_id: z.string().nullable(),
+    authors: z.array(z.object({ name: z.string(), github: z.string().optional() })),
+    license: z.string(),
+    homepage: z.string().nullable(),
+    source_repo: z.string().openapi({ example: 'JoeCorrell/AYN-Thor-Dualscreen-Mods' }),
+    tags: z.array(z.string()),
+    screenshots: z.array(z.string()),
+    requires: z.array(z.string()),
+    devices: z.array(z.string()),
+    stars: z.number().nullable(),
+    targets: z.array(TargetDto),
+    install: z.array(InstallStepDto),
+    latest_release: ReleaseDto.nullable(),
+    updated_at: z.string(),
+  })
+  .openapi('Mod');
+
+export const LookupDto = z
+  .object({
+    game: GameDto,
+    matched: z.object({ kind: z.string(), value: z.string() }),
+    mods: z.array(ModDto),
+  })
+  .openapi('LookupResult');
+
+export const PlatformDto = z
+  .object({ id: z.string(), name: z.string(), manufacturer: z.string().nullable(), kind: z.string(), screens: z.number() })
+  .openapi('Platform');
+
+export const EmulatorDto = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    kind: z.string(),
+    platforms: z.array(z.string()),
+    os: z.array(z.string()),
+    homepage: z.string().nullable(),
+    paths: z.record(z.string(), z.string()).nullable(),
+  })
+  .openapi('Emulator');
+
+export const DeviceDto = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    manufacturer: z.string(),
+    os: z.string(),
+    screens: z.number(),
+    resolutions: z.array(z.string()).nullable(),
+  })
+  .openapi('Device');
+
+export const ErrorDto = z.object({ error: z.string() }).openapi('Error');
+
+export const page = <T extends z.ZodTypeAny>(item: T) =>
+  z.object({ items: z.array(item), next_offset: z.number().nullable() });
+
+export type GameDto = z.infer<typeof GameDto>;
+export type ModDto = z.infer<typeof ModDto>;
+export type ReleaseDto = z.infer<typeof ReleaseDto>;

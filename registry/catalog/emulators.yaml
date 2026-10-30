@@ -1,0 +1,86 @@
+# Emulators, mod loaders and frontends a mod can target.
+# `paths` documents the variables that install steps use; clients map them to real folders.
+- id: melonds
+  name: melonDS
+  platforms: [nds]
+  os: [android, windows, linux, macos]
+  homepage: https://melonds.kuribo64.net/
+- id: drastic
+  name: DraStic
+  platforms: [nds]
+  os: [android]
+- id: azahar
+  name: Azahar
+  platforms: [3ds]
+  os: [android, windows, linux, macos]
+  homepage: https://azahar-emu.org/
+  paths:
+    load_dir: "<user dir>/load/mods — per-title folders named by title id"
+    textures_dir: "<user dir>/load/textures — per-title folders named by title id"
+- id: cemu
+  name: Cemu
+  platforms: [wiiu]
+  os: [windows, linux, macos, android]
+  homepage: https://cemu.info/
+  paths:
+    mods_dir: "<cemu dir>/graphicPacks"
+- id: dolphin
+  name: Dolphin
+  platforms: [gc, wii]
+  os: [android, windows, linux, macos]
+  homepage: https://dolphin-emu.org/
+  paths:
+    textures_dir: "<user dir>/Load/Textures — per-game folders named by game id"
+    mods_dir: "<user dir>/Load/GraphicMods"
+- id: eden
+  name: Eden
+  platforms: [switch]
+  os: [android, windows, linux]
+  paths:
+    load_dir: "<user dir>/load — per-title folders named by title id"
+- id: ppsspp
+  name: PPSSPP
+  platforms: [psp]
+  os: [android, windows, linux, macos]
+  homepage: https://www.ppsspp.org/
+  paths:
+    textures_dir: "<memstick>/PSP/TEXTURES — per-game folders named by game id"
+- id: duckstation
+  name: DuckStation
+  platforms: [ps1]
+  os: [windows, linux, macos, android]
+  paths:
+    textures_dir: "<user dir>/textures — per-game folders named by serial"
+- id: pcsx2
+  name: PCSX2
+  platforms: [ps2]
+  os: [windows, linux, macos]
+  homepage: https://pcsx2.net/
+  paths:
+    textures_dir: "<user dir>/textures — per-game folders named by serial"
+- id: retroarch
+  name: RetroArch
+  kind: frontend
+  platforms: [gb, gbc, gba, nds, n64, ps1, psp]
+  os: [android, windows, linux, macos]
+  homepage: https://www.retroarch.com/
+  paths:
+    data_dir: "RetroArch system/ directory"
+- id: smapi
+  name: SMAPI (Stardew Modding API)
+  kind: mod_loader
+  platforms: [pc]
+  os: [windows, linux, macos]
+  homepage: https://smapi.io/
+  paths:
+    mods_dir: "<game folder>/Mods"
+- id: winlator
+  name: Winlator
+  kind: frontend
+  platforms: [pc]
+  os: [android]
+- id: native
+  name: Native / no emulator
+  kind: native
+  platforms: [pc, android]
+  os: [android, windows, linux, macos]

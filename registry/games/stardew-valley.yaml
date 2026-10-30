@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=../schema/game.schema.json
+id: stardew-valley
+title: Stardew Valley
+platforms: [pc, android, switch]
+identifiers:
+  - { kind: steam_appid, value: "413150", platform: pc }
+  - { kind: android_pkg, value: com.chucklefish.stardewvalley, platform: android }

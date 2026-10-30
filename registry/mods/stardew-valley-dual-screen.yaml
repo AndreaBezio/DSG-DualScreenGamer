@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../schema/mod.schema.json
+id: stardew-valley-dual-screen
+name: Stardew Valley Dual Screen
+type: companion_app
+summary: Moves inventory, map and menus to the AYN Thor's lower screen while the farm stays on top.
+description: |
+  Game-side SMAPI mod plus an Android companion app that renders a full UI on the
+  second screen. Earlier releases were published as "WemuSecondScreen"; check the
+  upgrade notes on the release page before replacing an old install.
+game: stardew-valley
+authors:
+  - { name: JoeCorrell, github: JoeCorrell }
+license: unknown
+homepage: https://github.com/JoeCorrell/AYN-Thor-Dualscreen-Mods
+tags: [farming, ui]
+requires:
+  - Stardew Valley 1.6 or later
+  - SMAPI 4.0 or later
+devices: [ayn-thor]
+source:
+  github: JoeCorrell/AYN-Thor-Dualscreen-Mods
+  assets:
+    - { role: main, pattern: "*.zip" }
+    - { role: companion_apk, pattern: "*.apk" }
+targets:
+  - { platform: pc, emulator: smapi, min_version: "4.0" }
+install:
+  - { action: extract, asset: main, to: "{game.mods_dir}" }
+  - { action: install_apk, asset: companion_apk }
+  - { action: note, text: The companion APK is debug-signed; Android will ask to allow installs from this source. }

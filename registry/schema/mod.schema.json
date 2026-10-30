@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "dual_screen_layout",
+        "texture_pack",
+        "patch",
+        "companion_app",
+        "shader",
+        "utility"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string"
+    },
+    "game": {
+      "description": "Game id from registry/games; omit only for type \"utility\"",
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "authors": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "github": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX id, or \"unknown\""
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri"
+    },
+    "tags": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "screenshots": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "requires": {
+      "default": [],
+      "description": "Human-readable requirements",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "devices": {
+      "default": [],
+      "description": "Devices the mod is designed for; empty = any dual-screen setup",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 80,
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      }
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "github": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]+\\/[A-Za-z0-9._-]+$"
+        },
+        "assets": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string",
+                "enum": [
+                  "main",
+                  "companion_apk",
+                  "optional",
+                  "source"
+                ]
+              },
+              "pattern": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "role",
+              "pattern"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Glob matched against release asset names"
+        },
+        "prereleases": {
+          "default": false,
+          "type": "boolean"
+        },
+        "tag_pattern": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "github",
+        "assets"
+      ],
+      "additionalProperties": false
+    },
+    "targets": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+          },
+          "emulator": {
+            "description": "Emulator / mod loader / frontend id from catalog/emulators.yaml",
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+          },
+          "min_version": {
+            "type": "string"
+          },
+          "max_version": {
+            "type": "string"
+          },
+          "identifiers": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "sha1",
+                    "md5",
+                    "crc32",
+                    "title_id",
+                    "serial",
+                    "steam_appid",
+                    "gog_id",
+                    "android_pkg"
+                  ]
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "platform"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "install": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "extract"
+              },
+              "asset": {
+                "type": "string",
+                "enum": [
+                  "main",
+                  "companion_apk",
+                  "optional",
+                  "source"
+                ]
+              },
+              "to": {
+                "type": "string",
+                "minLength": 1
+              },
+              "from": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action",
+              "asset",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "copy"
+              },
+              "asset": {
+                "type": "string",
+                "enum": [
+                  "main",
+                  "companion_apk",
+                  "optional",
+                  "source"
+                ]
+              },
+              "to": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "action",
+              "asset",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "install_apk"
+              },
+              "asset": {
+                "type": "string",
+                "enum": [
+                  "main",
+                  "companion_apk",
+                  "optional",
+                  "source"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "asset"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "note"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "action",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "type",
+    "summary",
+    "authors",
+    "license",
+    "source",
+    "targets"
+  ],
+  "additionalProperties": false
+}
