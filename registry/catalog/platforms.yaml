@@ -1,17 +1,19 @@
 # Platforms a game can run on. `screens` is the original hardware's screen count.
-- { id: gb, name: Game Boy, manufacturer: Nintendo, kind: handheld }
-- { id: gbc, name: Game Boy Color, manufacturer: Nintendo, kind: handheld }
-- { id: gba, name: Game Boy Advance, manufacturer: Nintendo, kind: handheld }
-- { id: nds, name: Nintendo DS, manufacturer: Nintendo, kind: handheld, screens: 2 }
-- { id: 3ds, name: Nintendo 3DS, manufacturer: Nintendo, kind: handheld, screens: 2 }
-- { id: n64, name: Nintendo 64, manufacturer: Nintendo, kind: console }
-- { id: gc, name: GameCube, manufacturer: Nintendo, kind: console }
-- { id: wii, name: Wii, manufacturer: Nintendo, kind: console }
-- { id: wiiu, name: Wii U, manufacturer: Nintendo, kind: console, screens: 2 }
-- { id: switch, name: Nintendo Switch, manufacturer: Nintendo, kind: console }
-- { id: ps1, name: PlayStation, manufacturer: Sony, kind: console }
-- { id: ps2, name: PlayStation 2, manufacturer: Sony, kind: console }
-- { id: psp, name: PlayStation Portable, manufacturer: Sony, kind: handheld }
-- { id: psvita, name: PlayStation Vita, manufacturer: Sony, kind: handheld }
-- { id: pc, name: PC, kind: pc }
-- { id: android, name: Android, kind: mobile }
+# `libretro` names the libretro-database DAT (dump hashes -> No-Intro/Redump names -> libretro-thumbnails artwork).
+# `igdb` is the IGDB platform id, used to find games by title.
+- { id: gb, name: Game Boy, manufacturer: Nintendo, kind: handheld, igdb: 33, libretro: { system: Nintendo - Game Boy, dat: no-intro } }
+- { id: gbc, name: Game Boy Color, manufacturer: Nintendo, kind: handheld, igdb: 22, libretro: { system: Nintendo - Game Boy Color, dat: no-intro } }
+- { id: gba, name: Game Boy Advance, manufacturer: Nintendo, kind: handheld, igdb: 24, libretro: { system: Nintendo - Game Boy Advance, dat: no-intro } }
+- { id: nds, name: Nintendo DS, manufacturer: Nintendo, kind: handheld, screens: 2, igdb: 20, libretro: { system: Nintendo - Nintendo DS, dat: no-intro } }
+- { id: 3ds, name: Nintendo 3DS, manufacturer: Nintendo, kind: handheld, screens: 2, igdb: 37, libretro: { system: Nintendo - Nintendo 3DS, dat: no-intro } }
+- { id: n64, name: Nintendo 64, manufacturer: Nintendo, kind: console, igdb: 4, libretro: { system: Nintendo - Nintendo 64, dat: no-intro } }
+- { id: gc, name: GameCube, manufacturer: Nintendo, kind: console, igdb: 21, libretro: { system: Nintendo - GameCube, dat: redump } }
+- { id: wii, name: Wii, manufacturer: Nintendo, kind: console, igdb: 5, libretro: { system: Nintendo - Wii, dat: redump } }
+- { id: wiiu, name: Wii U, manufacturer: Nintendo, kind: console, screens: 2, igdb: 41 }
+- { id: switch, name: Nintendo Switch, manufacturer: Nintendo, kind: console, igdb: 130 }
+- { id: ps1, name: PlayStation, manufacturer: Sony, kind: console, igdb: 7, libretro: { system: Sony - PlayStation, dat: redump } }
+- { id: ps2, name: PlayStation 2, manufacturer: Sony, kind: console, igdb: 8, libretro: { system: Sony - PlayStation 2, dat: redump } }
+- { id: psp, name: PlayStation Portable, manufacturer: Sony, kind: handheld, igdb: 38, libretro: { system: Sony - PlayStation Portable, dat: redump } }
+- { id: psvita, name: PlayStation Vita, manufacturer: Sony, kind: handheld, igdb: 46 }
+- { id: pc, name: PC, kind: pc, igdb: 6 }
+- { id: android, name: Android, kind: mobile, igdb: 34 }

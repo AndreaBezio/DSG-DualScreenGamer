@@ -15,6 +15,13 @@
       "when": 1793378673329,
       "tag": "0001_mod_media",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793381104578,
+      "tag": "0002_game_media",
+      "breakpoints": true
     }
   ]
 }

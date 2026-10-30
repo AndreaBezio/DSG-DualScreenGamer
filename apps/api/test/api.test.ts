@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { GitHubClient } from '../../worker/src/github.ts';
-import { getState, syncMedia, syncRegistry, syncReleases } from '../../worker/src/sync.ts';
+import { getState, syncArtwork, syncMedia, syncRegistry, syncReleases } from '../../worker/src/sync.ts';
 import { fakeGitHubFetch, registry } from '../../worker/test/fixtures.ts';
 import { createApp } from '../src/app.ts';
 
@@ -20,13 +20,14 @@ beforeAll(async () => {
   db = createDb(url);
   await migrate(db, { migrationsFolder: fileURLToPath(new URL('../../../packages/db/drizzle', import.meta.url)) });
   await db.execute(
-    sql`truncate platforms, emulators, devices, games, game_identifiers, mods, mod_targets, mod_releases, release_assets, sync_state, sync_runs restart identity cascade`,
+    sql`truncate platforms, emulators, devices, games, game_identifiers, game_media, mods, mod_targets, mod_media, mod_releases, release_assets, sync_state, sync_runs restart identity cascade`,
   );
   await syncRegistry(db, registry);
   const github = new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test');
   const res = await syncReleases(db, registry, { github });
   expect(res.errors).toEqual([]);
   expect((await syncMedia(db, registry, { github })).errors).toEqual([]);
+  expect((await syncArtwork(db, registry, { fetch: fakeGitHubFetch() })).errors).toEqual([]);
   app = createApp(db, { adminToken: 'secret-token' });
 });
 
@@ -39,7 +40,8 @@ describe('sync', () => {
     const [row] = await db.execute<{ value: { v: string } }>(sql`select value from sync_state where key like 'gh_etag:test-quest-hd:%'`);
     expect(row!.value.v).toBe('"etag-tester/test-quest-hd"');
     const github = new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test');
-    expect((await syncReleases(db, registry, { github })).updated).toBe(0);
+    // Only tiny-cap-port is fetched again: with no usable release yet, its ETag is not trusted
+    expect((await syncReleases(db, registry, { github })).updated).toBe(1);
   });
 
   it('is idempotent and removes mods that left the registry', async () => {
@@ -48,10 +50,11 @@ describe('sync', () => {
     await syncRegistry(db, registry);
     // Releases were cascaded away with the mod; the cached ETag must not hide them now
     const github = new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test');
-    expect((await syncReleases(db, registry, { github })).updated).toBe(1);
+    // pocket-test-layout comes back, plus tiny-cap-port which has no release to hold an ETag for
+    expect((await syncReleases(db, registry, { github })).updated).toBe(2);
     const items = (await (await get('/v1/mods')).json() as any).items;
-    expect(items).toHaveLength(2);
-    expect(items.every((m: any) => m.latest_release)).toBe(true);
+    expect(items).toHaveLength(3);
+    expect(items.filter((m: any) => m.latest_release)).toHaveLength(2);
   });
 });
 
@@ -83,6 +86,38 @@ describe('media', () => {
     const mod = (await (await get('/v1/mods/pocket-test-layout')).json()) as any;
     expect(mod.cover_url).toBe('https://raw.githubusercontent.com/tester/pocket-layout/HEAD/shots/cover.png');
     await syncRegistry(db, registry);
+  });
+});
+
+describe('game artwork', () => {
+  // Like runSync: artwork always follows a registry sync (which drops DAT identifiers)
+  beforeAll(async () => {
+    await syncArtwork(db, registry, { fetch: fakeGitHubFetch() });
+  });
+
+  it('links libretro box art and snaps found through the DAT', async () => {
+    const game = (await (await get('/v1/games/tiny-cap')).json()) as any;
+    expect(game.cover_url).toMatch(/Named_Boxarts\/Legend%20of%20Zelda%2C%20The%20-%20The%20Minish%20Cap%20\(USA\)\.png$/);
+    expect(game.hero_url).toMatch(/Named_Snaps/);
+    expect(game.media.map((m: any) => [m.kind, m.source])).toEqual([
+      ['cover', 'libretro'],
+      ['screenshot', 'libretro'],
+    ]);
+  });
+
+  it('adds the sibling crc32/md5/serial so emulators can look up by CRC', async () => {
+    const body = (await (await get('/v1/lookup?platform=gba&crc32=ABCEBBB1')).json()) as any;
+    expect(body.game.id).toBe('tiny-cap');
+    const dat = body.game.identifiers.filter((i: any) => i.source === 'dat').map((i: any) => `${i.kind}:${i.value}`);
+    expect(dat).toEqual(['md5:a104896da0047abe8bee2a6e3f4c7290', 'crc32:abcebbb1', 'serial:BZME']);
+    // The mod is restricted to the USA sha1: the CRC of that same dump must still match it
+    expect(body.mods.map((m: any) => m.id)).toEqual(['tiny-cap-port']);
+  });
+
+  it('survives a registry resync and reuses the cached match', async () => {
+    await syncRegistry(db, registry);
+    expect((await syncArtwork(db, registry, { fetch: fakeGitHubFetch() })).updated).toBe(0);
+    expect((await get('/v1/lookup?crc32=abcebbb1')).status).toBe(200);
   });
 });
 
@@ -147,8 +182,8 @@ describe('catalog endpoints', () => {
     const res = await get('/v1/index.json');
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.mods).toHaveLength(2);
-    expect(body.platforms).toHaveLength(2);
+    expect(body.mods).toHaveLength(3);
+    expect(body.platforms).toHaveLength(3);
     expect((await get('/v1/index.json', { 'If-None-Match': res.headers.get('etag')! })).status).toBe(304);
   });
 

@@ -1,0 +1,21 @@
+clrmamepro (
+	name "Nintendo - Game Boy Advance"
+	description "Nintendo - Game Boy Advance"
+	version "2026.10.07"
+	extensions "gba"
+	homepage "http://github.com/robloach/libretro-dats"
+)
+
+game (
+	name "Legend of Zelda, The - The Minish Cap (Europe) (En,Fr,De,Es,It)"
+	region "Europe"
+	serial "BZMP"
+	rom ( name "Legend of Zelda, The - The Minish Cap (Europe) (En,Fr,De,Es,It).gba" size 16777216 crc E8637292 md5 2AF78EDBE244B5DE44471368AE2B6F0B sha1 CFF199B36FF173FB6FAF152653D1BCCF87C26FB7 serial "BZMP" )
+)
+
+game (
+	name "Legend of Zelda, The - The Minish Cap (USA)"
+	region "USA"
+	serial "BZME"
+	rom ( name "Legend of Zelda, The - The Minish Cap (USA).gba" size 16777216 crc ABCEBBB1 md5 A104896DA0047ABE8BEE2A6E3F4C7290 sha1 B4BD50E4131B027C334547B4524E2DBBD4227130 serial "BZME" )
+)

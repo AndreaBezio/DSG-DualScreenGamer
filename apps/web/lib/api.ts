@@ -1,6 +1,14 @@
 // Server-side client for the DSG API. Types mirror apps/api/src/dto.ts.
 
-export type Identifier = { kind: string; value: string; platform: string | null; region: string | null; label: string | null };
+export type Identifier = {
+  kind: string;
+  value: string;
+  platform: string | null;
+  region: string | null;
+  label: string | null;
+  source: 'manifest' | 'dat';
+};
+export type GameMedia = { kind: 'cover' | 'screenshot' | 'title' | 'artwork'; url: string; width: number | null; height: number | null; source: string };
 export type Game = {
   id: string;
   title: string;
@@ -8,6 +16,8 @@ export type Game = {
   igdb_id: number | null;
   summary: string | null;
   cover_url: string | null;
+  hero_url: string | null;
+  media: GameMedia[];
   release_year: number | null;
   identifiers: Identifier[];
   mod_count: number;
@@ -86,7 +96,7 @@ function query(params: Record<string, string | undefined>): string {
   return q.toString();
 }
 
-export const MOD_TYPES = ['dual_screen_layout', 'texture_pack', 'patch', 'companion_app', 'shader', 'utility'] as const;
+export const MOD_TYPES = ['dual_screen_layout', 'port', 'texture_pack', 'patch', 'companion_app', 'shader', 'utility'] as const;
 export type ModType = (typeof MOD_TYPES)[number];
 
 export function formatBytes(n: number): string {

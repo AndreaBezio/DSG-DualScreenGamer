@@ -2,22 +2,22 @@
 
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import type { Media, Preview } from '@/lib/api';
+import type { Preview } from '@/lib/api';
 import { Icon } from './Icon';
 
 /**
  * How the mod looks on a two-screen handheld: the top screen above, the
  * second screen below, at the AYN Thor's proportions (1920x1080 over 1240x1080).
  */
-export function DualScreenPreview({ previews, fallback }: { previews: Preview[]; fallback?: Media }) {
+export function DualScreenPreview({ previews }: { previews: Preview[] }) {
   const t = useTranslations('preview');
   const [i, setI] = useState(0);
-  const slides: Preview[] = previews.length ? previews : [];
-  if (!slides.length && !fallback) return null;
-  const current = slides[i];
-  const top = current?.top ?? fallback!;
-  const bottom = current?.bottom;
-  const caption = current?.caption ?? null;
+  const slides = previews;
+  if (!slides.length) return null;
+  const current = slides[i % slides.length]!;
+  const top = current.top;
+  const bottom = current.bottom;
+  const caption = current.caption;
 
   return (
     <figure className="dsp">
@@ -27,7 +27,7 @@ export function DualScreenPreview({ previews, fallback }: { previews: Preview[];
         </div>
         <div className="dsp-hinge" aria-hidden />
         <div className="dsp-screen dsp-bottom">
-          {bottom ? <img src={bottom.url} alt={t('bottom')} /> : <span className="dsp-missing">{t('noBottom')}</span>}
+          <img src={bottom.url} alt={t('bottom')} />
         </div>
       </div>
       <figcaption className="dsp-caption">
@@ -37,7 +37,7 @@ export function DualScreenPreview({ previews, fallback }: { previews: Preview[];
           </button>
         ) : null}
         <span>
-          {caption ?? (slides.length ? t('title') : t('single'))}
+          {caption ?? t('title')}
           {slides.length > 1 ? <span className="muted"> · {i + 1}/{slides.length}</span> : null}
         </span>
         {slides.length > 1 ? (

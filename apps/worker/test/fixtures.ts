@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { GhRelease } from '../src/github.ts';
 import type { Registry } from '../src/registry.ts';
 
@@ -6,6 +7,7 @@ export const registry: Registry = {
   catalog: {
     platforms: [
       { id: '3ds', name: 'Nintendo 3DS', kind: 'handheld', screens: 2 },
+      { id: 'gba', name: 'Game Boy Advance', kind: 'handheld', screens: 1, libretro: { system: 'Nintendo - Game Boy Advance', dat: 'no-intro' } },
       { id: 'nds', name: 'Nintendo DS', kind: 'handheld', screens: 2 },
     ],
     emulators: [
@@ -29,6 +31,13 @@ export const registry: Registry = {
       title: 'Pocket Test',
       platforms: ['nds'],
       identifiers: [{ kind: 'sha1', value: 'a'.repeat(40), platform: 'nds' }],
+    },
+    {
+      // Real No-Intro entry (test/data/gba-excerpt.dat): exercises DAT enrichment and thumbnails
+      id: 'tiny-cap',
+      title: 'Tiny Cap',
+      platforms: ['gba'],
+      identifiers: [{ kind: 'sha1', value: 'b4bd50e4131b027c334547b4524e2dbbd4227130', platform: 'gba', region: 'USA' }],
     },
   ],
   mods: [
@@ -66,6 +75,23 @@ export const registry: Registry = {
       targets: [{ platform: 'nds', identifiers: [] }],
       install: [{ action: 'copy', asset: 'main', to: '{emulator.layouts_dir}' }],
     },
+    {
+      id: 'tiny-cap-port',
+      name: 'Tiny Cap Port',
+      type: 'port',
+      summary: 'Native port, USA dump only',
+      game: 'tiny-cap',
+      authors: [{ name: 'tester' }],
+      license: 'GPL-3.0',
+      tags: [],
+      screenshots: [],
+      previews: [],
+      requires: [],
+      devices: ['ayn-thor'],
+      source: { github: 'tester/tiny-cap-port', prereleases: false, auto_media: false, assets: [{ role: 'main', pattern: '*.apk' }] },
+      targets: [{ platform: 'gba', identifiers: [{ kind: 'sha1', value: 'b4bd50e4131b027c334547b4524e2dbbd4227130' }] }],
+      install: [{ action: 'install_apk', asset: 'main' }],
+    },
   ],
 };
 
@@ -79,6 +105,7 @@ const asset = (name: string, digest: string | null = null) => ({
 });
 
 export const releases: Record<string, GhRelease[]> = {
+  'tester/tiny-cap-port': [],
   'tester/test-quest-hd': [
     {
       tag_name: 'v1.1.0',
@@ -165,6 +192,12 @@ export function fakeGitHubFetch(): typeof fetch {
   return (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
     const sent = (init?.headers as Record<string, string> | undefined)?.['If-None-Match'];
+    if (url.pathname.startsWith('/libretro/libretro-database/')) {
+      return new Response(readFileSync(new URL('./data/gba-excerpt.dat', import.meta.url), 'utf8'));
+    }
+    if (url.pathname.startsWith('/libretro-thumbnails/')) {
+      return new Response(null, { status: url.pathname.includes('Named_Titles') ? 404 : 200 });
+    }
     if (url.hostname !== 'gh.test') {
       // Any other host is the image CDN (raw.githubusercontent.com, release downloads, img.test)
       const name = url.pathname.split('/').pop()!;

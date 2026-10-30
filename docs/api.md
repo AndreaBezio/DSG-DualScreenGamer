@@ -51,6 +51,11 @@ only to those exact dumps (e.g. one region).
 
 ## Images
 
+Every game carries `cover_url` (box art), `hero_url` (a wide image for banners) and `media[]`
+(`{ kind, url, width, height, source }`, kind `cover` | `screenshot` | `title` | `artwork`, source `igdb` or
+`libretro`). Identifiers with `source: "dat"` were added from the libretro-database DAT entry of a dump the manifest
+lists, so a lookup by CRC32 finds the same mods as one by SHA-1.
+
 Every mod carries:
 
 - `cover_url`: the best picture for a card or list row (manifest screenshot, preview, found image, or the game cover).

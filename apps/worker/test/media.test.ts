@@ -73,6 +73,15 @@ describe('pairByName', () => {
 });
 
 describe('media rows', () => {
+  it('counts an image re-attached to every release once, keeping the newest', async () => {
+    const candidates = [
+      { url: 'https://github.com/o/r/releases/download/v1.2/showcase.png', source: 'release' as const },
+      { url: 'https://github.com/o/r/releases/download/v1.0/showcase.png', source: 'readme' as const },
+    ];
+    const rows = await buildAutoMedia(candidates, async () => pngHead(3360, 2760), 0, 0);
+    expect(rows.map((r) => r.url)).toEqual(['https://github.com/o/r/releases/download/v1.2/showcase.png']);
+  });
+
   it('reads PNG sizes from the first bytes', () => {
     expect(readSize(pngHead(400, 240))).toEqual({ width: 400, height: 240 });
     expect(readSize(new Uint8Array([1, 2, 3]))).toBeNull();

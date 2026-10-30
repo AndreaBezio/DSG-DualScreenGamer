@@ -13,6 +13,13 @@ export const Platform = z
     kind: z.enum(['handheld', 'console', 'pc', 'mobile', 'arcade']),
     /** Native screen count of the original hardware (DS/3DS/Wii U = 2). */
     screens: z.number().int().min(1).max(2).default(1),
+    /** libretro-database DAT used to recognise dumps and find libretro-thumbnails artwork. */
+    libretro: z
+      .object({ system: z.string(), dat: z.enum(['no-intro', 'redump']) })
+      .strict()
+      .optional(),
+    /** IGDB platform id, used to search games by title. */
+    igdb: z.number().int().positive().optional(),
   })
   .strict();
 export type Platform = z.infer<typeof Platform>;

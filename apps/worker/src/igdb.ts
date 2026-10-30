@@ -1,4 +1,5 @@
 import type { GameManifest } from '@dsg/schema';
+import { normalizeTitle } from './artwork.ts';
 import type { FetchLike } from './github.ts';
 
 /** IGDB external_game_source ids for the identifier kinds we can map. */
@@ -13,7 +14,9 @@ export type IgdbGame = {
   name: string;
   summary?: string;
   first_release_date?: number;
-  cover?: { image_id: string };
+  cover?: { image_id: string; width?: number; height?: number };
+  screenshots?: { image_id: string; width?: number; height?: number }[];
+  artworks?: { image_id: string; width?: number; height?: number }[];
 };
 
 export type TokenStore = {
@@ -60,8 +63,11 @@ export class IgdbClient {
     return (await res.json()) as T;
   }
 
-  /** Finds the IGDB id through store ids (Steam, GOG, Play Store) declared in the manifest. */
-  async resolveId(game: GameManifest): Promise<number | null> {
+  /**
+   * Finds the IGDB id: store ids first (Steam, GOG, Play Store), then a title search
+   * restricted to the game's platforms that only accepts an exact (normalized) name match.
+   */
+  async resolveId(game: GameManifest, platformIds: number[] = []): Promise<number | null> {
     if (game.igdb) return game.igdb;
     for (const i of game.identifiers) {
       const source = EXTERNAL_SOURCES[i.kind];
@@ -72,16 +78,30 @@ export class IgdbClient {
       );
       if (rows[0]?.game) return rows[0].game;
     }
-    return null;
+    const title = game.title.replace(/"/g, '');
+    const where = platformIds.length ? ` where platforms = (${platformIds.join(',')});` : '';
+    const found = await this.query<{ id: number; name: string; alternative_names?: { name: string }[] }[]>(
+      'games',
+      `search "${title}"; fields id,name,alternative_names.name;${where} limit 10;`,
+    );
+    const wanted = normalizeTitle(game.title);
+    const hit = found.find(
+      (g) => normalizeTitle(g.name) === wanted || g.alternative_names?.some((a) => normalizeTitle(a.name) === wanted),
+    );
+    return hit?.id ?? null;
   }
 
   async game(id: number): Promise<IgdbGame | null> {
     const rows = await this.query<IgdbGame[]>(
       'games',
-      `fields name,summary,first_release_date,cover.image_id; where id = ${id};`,
+      `fields name,summary,first_release_date,cover.image_id,cover.width,cover.height,screenshots.image_id,screenshots.width,screenshots.height,artworks.image_id,artworks.width,artworks.height; where id = ${id};`,
     );
     return rows[0] ?? null;
   }
+}
+
+export function igdbImageUrl(imageId: string, size: string): string {
+  return `https://images.igdb.com/igdb/image/upload/${size}/${imageId}.jpg`;
 }
 
 export function igdbCoverUrl(imageId: string, size = 't_cover_big'): string {

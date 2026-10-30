@@ -21,6 +21,7 @@ export default async function GamePage({ params }: Props) {
   if (!game) notFound();
   const t = await getTranslations('game');
   const platformNames = new Map(index.platforms.map((p) => [p.id, p.name]));
+  const shots = game.media.filter((m) => m.kind === 'screenshot' || m.kind === 'title' || m.kind === 'artwork');
 
   return (
     <>
@@ -28,6 +29,9 @@ export default async function GamePage({ params }: Props) {
         <Link href="/games">{t('crumb')}</Link>
       </nav>
       <header className="item-head item-head-game">
+        {game.hero_url ? (
+          <span className="item-banner" style={{ backgroundImage: `url("${game.hero_url}")` }} aria-hidden />
+        ) : null}
         <span className="item-icon item-cover">
           <TileArt id={game.id} type="game" cover={game.cover_url} title={game.title} />
         </span>
@@ -49,7 +53,7 @@ export default async function GamePage({ params }: Props) {
               <summary data-nav>{t('identifiers', { count: game.identifiers.length })}</summary>
               <ul className="kv">
                 {game.identifiers.map((i) => (
-                  <li key={`${i.kind}:${i.value}`}>
+                  <li key={`${i.kind}:${i.value}`} title={i.label ?? undefined}>
                     <span>{i.kind}</span>
                     <code>{i.value}</code>
                     {i.region ? <span className="muted">{i.region}</span> : null}
@@ -61,6 +65,19 @@ export default async function GamePage({ params }: Props) {
           {game.igdb_id ? <p className="fineprint">{t('metadata')}</p> : null}
         </div>
       </header>
+
+      {shots.length ? (
+        <section className="sheet">
+          <h2>{t('screenshots')}</h2>
+          <div className="gallery">
+            {shots.map((m) => (
+              <a key={m.url} href={m.url} target="_blank" rel="noopener" className="gallery-item gallery-item-game" data-nav>
+                <img src={m.url} alt="" loading="lazy" />
+              </a>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <Panel title={t('mods', { count: mods.length })}>
         {mods.length ? (

@@ -9,6 +9,8 @@ instead of copying files around by hand.
   (works with keyboard and gamepad), colored category tabs.
 - **API**: `GET /v1/lookup?title_id=…` → which mods exist for the game being booted, with download URLs,
   sha256 checksums and machine-readable install steps. See [docs/api.md](docs/api.md).
+- **Game artwork, automatically**: ROM hashes are matched against libretro-database (No-Intro/Redump) for box art,
+  screenshots and title screens from libretro-thumbnails, with no API key; IGDB adds covers and screenshots for the rest.
 - **Screenshots, automatically**: images in the mod's README, release notes and release assets are collected on
   every sync; pairs like `map-top.png` / `map-bottom.png` are shown as a two-screen preview.
 - **Registry**: mods are listed through YAML manifests reviewed as pull requests. DSG never re-hosts files:

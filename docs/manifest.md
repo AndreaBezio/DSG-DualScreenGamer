@@ -31,13 +31,21 @@ identifiers:             # what emulators recognise the game by
 
 Each identifier can belong to only one game. Add one per region/revision your mod supports.
 
+For cartridge and disc systems you only need one identifier per dump (a SHA-1 is best): DSG finds the dump in the
+No-Intro/Redump DATs of [libretro-database](https://github.com/libretro/libretro-database), adds its other hashes
+and serial automatically, and shows its box art, screenshot and title screen from
+[libretro-thumbnails](https://github.com/libretro-thumbnails). Covers and screenshots for other games come from IGDB.
+
+Use `type: port` for recompiled/decompiled games that run natively instead of in an emulator; target the original
+platform (e.g. `gba`) without an `emulator`.
+
 ## 2. The mod: `registry/mods/<id>.yaml`
 
 ```yaml
 # yaml-language-server: $schema=../schema/mod.schema.json
 id: my-game-thor-layout
 name: My Game — Thor layout
-type: dual_screen_layout  # dual_screen_layout | texture_pack | patch | companion_app | shader | utility
+type: dual_screen_layout  # dual_screen_layout | port | texture_pack | patch | companion_app | shader | utility
 summary: Map on the bottom screen, action on top.   # max 200 chars
 description: |            # optional, blank lines separate paragraphs
   Longer explanation.

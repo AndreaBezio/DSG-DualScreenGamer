@@ -162,10 +162,16 @@ export async function buildAutoMedia(
   firstPair: number,
 ): Promise<MediaRow[]> {
   const sized: (Candidate & { width: number; height: number })[] = [];
+  const seen = new Set<string>();
   for (const c of candidates.slice(0, MAX_AUTO * 2)) {
     if (sized.length >= MAX_AUTO) break;
     const size = readSize(await probe(c.url).catch(() => null));
     if (!size || size.width < MIN_WIDTH || size.height < MIN_HEIGHT) continue;
+    // The same file re-attached to every release (v1.0/showcase.png, v1.2/showcase.png) counts once;
+    // candidates come newest-first, so the latest copy wins
+    const key = `${posix.basename(new URL(c.url).pathname).toLowerCase()}:${size.width}x${size.height}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     sized.push({ ...c, ...size });
   }
   const { pairs, rest } = pairByName(sized);

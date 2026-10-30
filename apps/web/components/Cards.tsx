@@ -32,7 +32,8 @@ export function GameCard({ game }: { game: Game }) {
   const t = useTranslations('game');
   return (
     <Link href={`/games/${game.id}`} className="card game-card" data-nav>
-      <span className="card-pic">
+      {/* Box art comes in many shapes: shown whole, over a blurred copy of itself */}
+      <span className="card-pic" style={game.cover_url ? ({ '--art': `url("${game.cover_url}")` } as React.CSSProperties) : undefined}>
         <TileArt id={game.id} type="game" cover={game.cover_url} title={game.title} />
       </span>
       <span className="card-body">

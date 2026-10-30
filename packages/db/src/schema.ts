@@ -73,8 +73,32 @@ export const gameIdentifiers = pgTable(
     platform: text('platform'),
     region: text('region'),
     label: text('label'),
+    /** manifest, or dat when added from a libretro-database DAT */
+    source: text('source').notNull().default('manifest'),
+    /** For dat rows: the manifest identifier (`kind:value`) of the same dump. */
+    siblingOf: text('sibling_of'),
   },
   (t) => [uniqueIndex('game_identifiers_kind_value_uq').on(t.kind, t.value), index('game_identifiers_game_idx').on(t.gameId)],
+);
+
+/** Artwork for a game: box art, screenshots, title screens, key art. */
+export const gameMedia = pgTable(
+  'game_media',
+  {
+    id: serial('id').primaryKey(),
+    gameId: text('game_id')
+      .notNull()
+      .references(() => games.id, { onDelete: 'cascade' }),
+    /** cover | screenshot | title | artwork */
+    kind: text('kind').notNull(),
+    url: text('url').notNull(),
+    /** igdb | libretro */
+    source: text('source').notNull(),
+    width: integer('width'),
+    height: integer('height'),
+    position: smallint('position').notNull(),
+  },
+  (t) => [index('game_media_game_idx').on(t.gameId)],
 );
 
 export type Author = { name: string; github?: string };

@@ -12,8 +12,8 @@ export type MatchQuery = {
   platform?: string;
   emulator?: string;
   emulatorVersion?: string;
-  /** The identifier the client looked the game up with. */
-  identifier?: { kind: string; value: string };
+  /** The identifier the client looked the game up with, plus those of the same dump. */
+  identifiers?: { kind: string; value: string }[];
 };
 
 /**
@@ -26,9 +26,8 @@ export function targetMatches(t: TargetRow, q: MatchQuery): boolean {
   if (q.emulator && t.emulator && t.emulator !== q.emulator) return false;
   if (q.emulatorVersion && (!q.emulator || t.emulator === q.emulator) && !versionInRange(q.emulatorVersion, t.minVersion, t.maxVersion))
     return false;
-  if (q.identifier && t.identifiers.length) {
-    const { kind, value } = q.identifier;
-    if (!t.identifiers.some((i) => i.kind === kind && i.value === value)) return false;
+  if (q.identifiers?.length && t.identifiers.length) {
+    if (!t.identifiers.some((i) => q.identifiers!.some((x) => x.kind === i.kind && x.value === i.value))) return false;
   }
   return true;
 }

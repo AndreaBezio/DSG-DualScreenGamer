@@ -30,9 +30,9 @@ export default async function ModPage({ params }: Props) {
 
   const rel = mod.latest_release;
   const assetName = (role?: string) => rel?.assets.find((a) => a.role === role)?.name ?? role ?? '';
-  const hasPreview = mod.previews.length > 0 || mod.media.length > 0;
-  // The first gallery image already fills the preview when there are no pairs
-  const gallery = mod.previews.length ? mod.media : mod.media.slice(1);
+  // Without a top/bottom pair, the first image is shown large instead of a half-empty device frame
+  const showcase = mod.previews.length ? null : (mod.media[0] ?? null);
+  const gallery = showcase ? mod.media.slice(1) : mod.media;
   const apiCall = `curl -A "MyEmu/1.0" ${PUBLIC_API_URL}/v1/mods/${mod.id}/releases/latest`;
 
   return (
@@ -91,11 +91,20 @@ export default async function ModPage({ params }: Props) {
 
       <div className="item-layout">
         <div className="item-main">
-          {hasPreview ? (
+          {mod.previews.length ? (
             <section className="sheet">
               <h2>{t('preview')}</h2>
-              <DualScreenPreview previews={mod.previews} fallback={mod.media[0]} />
+              <DualScreenPreview previews={mod.previews} />
             </section>
+          ) : null}
+
+          {showcase ? (
+            <figure className="sheet showcase-sheet">
+              <a href={showcase.url} target="_blank" rel="noopener" data-nav>
+                <img className="showcase" src={showcase.url} alt={showcase.caption ?? mod.name} />
+              </a>
+              <figcaption className="fineprint">{showcase.caption ?? t('showcase')}</figcaption>
+            </figure>
           ) : null}
 
           {gallery.length ? (

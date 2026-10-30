@@ -6,6 +6,7 @@ const PATHS: Record<string, string> = {
   patch: 'M14.5 4.5l5 5L9.5 19.5l-5-5zM12 7l5 5M10 13h.01M13 10h.01M11 15h.01M15 11h.01',
   companion_app: 'M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2',
   shader: 'M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z',
+  port: 'M7 7h10v10H7zM10 10h4v4h-4zM9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4',
   utility: 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z',
   home: 'M3 11l9-8 9 8M5 9.5V21h5v-6h4v6h5V9.5',
   code: 'M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16',

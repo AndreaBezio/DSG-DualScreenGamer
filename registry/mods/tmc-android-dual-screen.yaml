@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../schema/mod.schema.json
+id: tmc-android-dual-screen
+name: The Minish Cap — Dual Screen
+type: port
+summary: Native Android port for the AYN Thor with a live map, quest status and touch inventory on the bottom screen.
+description: |
+  The game runs natively on the top screen while the second display shows a world map with
+  region zoom, the dungeon automap, quest status (kinstones, sword techniques) and a touch
+  inventory. Everything on the panel is decoded from the ROM at runtime.
+
+  Built on Project Picori (the native Minish Cap port: SDL3, software PPU, agbplay audio),
+  Raekwon1603/tmc-android (Android packaging and second-screen scaffold) and the zeldaret/tmc
+  decompilation. No game data is included: you need your own ROM.
+game: zelda-the-minish-cap
+authors:
+  - { name: samyost1, github: samyost1 }
+license: GPL-3.0
+homepage: https://github.com/samyost1/tmc-android
+tags: [zelda, decompilation, map, inventory]
+requires:
+  - "Your own The Minish Cap ROM (USA, SHA-1 b4bd50e4131b027c334547b4524e2dbbd4227130)"
+  - Android device with a second display (works on any Android Presentation display)
+devices: [ayn-thor]
+source:
+  github: samyost1/tmc-android
+  assets:
+    - { role: main, pattern: "*.apk" }
+targets:
+  # The USA build also boots EU ROMs, but as a hybrid without UI text: listed for USA only
+  - platform: gba
+    identifiers:
+      - { kind: sha1, value: b4bd50e4131b027c334547b4524e2dbbd4227130 }
+install:
+  - { action: install_apk, asset: main }
+  - { action: note, text: "Copy your own ROM as baserom.gba to Android/data/dev.picori.tmc/files/ on internal storage, then launch the app." }
+  - { action: note, text: The APK is debug-signed; Android will warn about an unknown developer. }

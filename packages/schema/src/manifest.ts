@@ -70,6 +70,8 @@ export const MOD_TYPES = [
   'companion_app',
   'shader',
   'utility',
+  /** Recompiled / decompiled game running natively, no emulator */
+  'port',
 ] as const;
 export const ModType = z.enum(MOD_TYPES);
 export type ModType = z.infer<typeof ModType>;

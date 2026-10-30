@@ -47,6 +47,7 @@ export function SiteFooter() {
   return (
     <footer className="site-footer">
       <p>{t('line')}</p>
+      <p>{t('credits')}</p>
       <p>
         <Link href="/developers">API</Link> · <a href="https://github.com/AndreaBezio/DSG-DualScreenGamer">GitHub</a>
       </p>

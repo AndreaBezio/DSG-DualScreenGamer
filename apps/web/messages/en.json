@@ -11,7 +11,8 @@
     "search": "Search mods"
   },
   "footer": {
-    "line": "DSG links to the authors' own GitHub releases. Mods belong to their authors."
+    "line": "DSG links to the authors' own GitHub releases. Mods belong to their authors.",
+    "credits": "Game artwork: IGDB.com and libretro-thumbnails."
   },
   "home": {
     "title": "Two screens. Every mod.",
@@ -33,7 +34,8 @@
     "companion_app": "Companion apps",
     "shader": "Shaders",
     "utility": "Utilities",
-    "game": "Game"
+    "game": "Game",
+    "port": "Native ports"
   },
   "mods": {
     "title": "All mods",
@@ -54,7 +56,9 @@
     "identifiers": "Recognised by {count, plural, one {# identifier} other {# identifiers}}",
     "noMods": "No mods for this game yet.",
     "addOne": "Made one? Add it.",
-    "metadata": "Title metadata from IGDB"
+    "metadata": "Title metadata from IGDB",
+    "screenshots": "Screenshots",
+    "fromDat": "Also recognised by"
   },
   "mod": {
     "crumb": "Mods",
@@ -80,7 +84,8 @@
       "copy": "Copy {asset} to {to}",
       "install_apk": "Install the {asset} APK",
       "note": "{text}"
-    }
+    },
+    "showcase": "From the mod page"
   },
   "preview": {
     "title": "Top and bottom screen",

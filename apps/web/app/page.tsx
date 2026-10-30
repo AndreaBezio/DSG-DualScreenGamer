@@ -33,7 +33,11 @@ export default async function Home() {
         </div>
         {featured ? (
           <div className="hero-feature">
-            <DualScreenPreview previews={featured.previews} fallback={featured.media[0]} />
+            {featured.previews.length ? (
+              <DualScreenPreview previews={featured.previews} />
+            ) : (
+              <img className="showcase" src={featured.media[0]!.url} alt={featured.name} />
+            )}
             <Link href={`/mods/${featured.id}`} className="hero-feature-link" data-nav>
               {featured.name} <Icon name="next" size={14} />
             </Link>

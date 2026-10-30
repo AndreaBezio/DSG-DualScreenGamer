@@ -3,6 +3,7 @@ import {
   devices,
   emulators,
   gameIdentifiers,
+  gameMedia,
   games,
   modMedia,
   modReleases,
@@ -17,7 +18,9 @@ import {
 import { normalizeIdentifier } from '@dsg/schema';
 import { and, desc, eq, isNull, like, lt, ne, notInArray, or } from 'drizzle-orm';
 import { GitHubClient, resolveReleases, type GhAsset } from './github.ts';
-import { IgdbClient, igdbCoverUrl, type TokenStore } from './igdb.ts';
+import { artworkSignature, fetchDat, indexDat, libretroArtwork, urlExists, type ArtworkMatch, type DatGame } from './artwork.ts';
+import type { FetchLike } from './github.ts';
+import { IgdbClient, igdbCoverUrl, igdbImageUrl, type TokenStore } from './igdb.ts';
 import { autoCandidates, buildAutoMedia, extractImages, manifestMedia, rawUrl, resolveImageUrl } from './media.ts';
 import type { Registry } from './registry.ts';
 
@@ -27,6 +30,8 @@ export type SyncOptions = {
   /** Hash assets that have no GitHub digest, up to this many bytes. 0 disables. */
   hashMaxBytes?: number;
   log?: (msg: string) => void;
+  /** Used for libretro DATs and thumbnails (tests pass a fake). */
+  fetch?: FetchLike;
 };
 
 const METADATA_TTL_MS = 30 * 24 * 3600 * 1000;
@@ -55,8 +60,11 @@ export function dbTokenStore(db: Db): TokenStore {
 /** Mirrors the registry into the database. Rows that left the registry are removed. */
 export async function syncRegistry(db: Db, reg: Registry): Promise<void> {
   await db.transaction(async (tx) => {
+    // DAT-derived identifiers are re-added by syncArtwork; dropping them first avoids clashes with manifest edits
+    await tx.delete(gameIdentifiers).where(eq(gameIdentifiers.source, 'dat'));
     for (const p of reg.catalog.platforms) {
-      await tx.insert(platforms).values(p).onConflictDoUpdate({ target: platforms.id, set: p });
+      const row = { id: p.id, name: p.name, manufacturer: p.manufacturer ?? null, kind: p.kind, screens: p.screens };
+      await tx.insert(platforms).values(row).onConflictDoUpdate({ target: platforms.id, set: row });
     }
     for (const e of reg.catalog.emulators) {
       const row = { ...e, homepage: e.homepage ?? null, paths: e.paths ?? null };
@@ -288,6 +296,76 @@ export async function syncMedia(db: Db, reg: Registry, opts: SyncOptions = {}): 
   return { updated, errors };
 }
 
+const ARTWORK_TTL_MS = 7 * 24 * 3600 * 1000;
+
+/**
+ * Recognises each game's dumps in libretro-database DATs: adds the sibling hashes/serial
+ * as identifiers and links libretro-thumbnails box art, snaps and title screens.
+ * DATs are only downloaded when a game's identifiers changed or its match is a week old.
+ */
+export async function syncArtwork(db: Db, reg: Registry, opts: SyncOptions = {}): Promise<{ updated: number; errors: string[] }> {
+  const fetchImpl = opts.fetch ?? fetch;
+  const errors: string[] = [];
+  let updated = 0;
+  const dats = new Map<string, Map<string, DatGame> | null>();
+  const datFor = async (p: (typeof reg.catalog.platforms)[number]) => {
+    if (!p.libretro) return null;
+    if (!dats.has(p.id)) {
+      try {
+        dats.set(p.id, indexDat(await fetchDat(fetchImpl, p.libretro)));
+      } catch (e) {
+        errors.push((e as Error).message);
+        dats.set(p.id, null);
+      }
+    }
+    return dats.get(p.id)!;
+  };
+
+  for (const g of reg.games) {
+    if (!g.identifiers.length) continue;
+    try {
+      const key = `artwork:${g.id}`;
+      const cached = await getState<{ sig: string; at: number; match: ArtworkMatch | null }>(db, key);
+      let match: ArtworkMatch | null = null;
+      const candidates = reg.catalog.platforms.filter((p) => p.libretro && g.platforms.includes(p.id));
+      const sig = candidates.map((p) => artworkSignature(g, p)).join(',');
+      if (cached && cached.sig === sig && Date.now() - cached.at < ARTWORK_TTL_MS) {
+        match = cached.match;
+      } else {
+        for (const p of candidates) {
+          const idx = await datFor(p);
+          if (!idx) continue;
+          match = await libretroArtwork(g, p, idx, (url) => urlExists(fetchImpl, url));
+          if (match) break;
+        }
+        await setState(db, key, { sig, at: Date.now(), match });
+        updated++;
+      }
+
+      await db.transaction(async (tx) => {
+        await tx.delete(gameIdentifiers).where(and(eq(gameIdentifiers.gameId, g.id), eq(gameIdentifiers.source, 'dat')));
+        await tx.delete(gameMedia).where(and(eq(gameMedia.gameId, g.id), eq(gameMedia.source, 'libretro')));
+        if (!match) return;
+        if (match.identifiers.length) {
+          // Manifest identifiers win: existing (kind, value) pairs are skipped
+          await tx
+            .insert(gameIdentifiers)
+            .values(match.identifiers.map((i) => ({ gameId: g.id, ...i, source: 'dat' })))
+            .onConflictDoNothing();
+        }
+        if (match.media.length) {
+          await tx
+            .insert(gameMedia)
+            .values(match.media.map((m, i) => ({ gameId: g.id, kind: m.kind, url: m.url, source: 'libretro', position: 100 + i })));
+        }
+      });
+    } catch (e) {
+      errors.push(`artwork ${g.id}: ${(e as Error).message}`);
+    }
+  }
+  return { updated, errors };
+}
+
 /** Fills title metadata from IGDB for games never synced or older than 30 days. */
 export async function syncMetadata(db: Db, reg: Registry, igdb: IgdbClient): Promise<{ updated: number; errors: string[] }> {
   const errors: string[] = [];
@@ -301,8 +379,30 @@ export async function syncMetadata(db: Db, reg: Registry, igdb: IgdbClient): Pro
     const manifest = reg.games.find((g) => g.id === row.id);
     if (!manifest) continue;
     try {
-      const id = row.igdbId ?? (await igdb.resolveId(manifest));
+      const platformIds = reg.catalog.platforms.filter((p) => manifest.platforms.includes(p.id) && p.igdb).map((p) => p.igdb!);
+      const id = row.igdbId ?? (await igdb.resolveId(manifest, platformIds));
       const meta = id ? await igdb.game(id) : null;
+      const media = [
+        ...(meta?.cover ? [{ kind: 'cover', img: meta.cover, size: 't_cover_big' }] : []),
+        ...(meta?.artworks ?? []).slice(0, 3).map((img) => ({ kind: 'artwork', img, size: 't_1080p' })),
+        ...(meta?.screenshots ?? []).slice(0, 6).map((img) => ({ kind: 'screenshot', img, size: 't_screenshot_big' })),
+      ];
+      await db.transaction(async (tx) => {
+        await tx.delete(gameMedia).where(and(eq(gameMedia.gameId, row.id), eq(gameMedia.source, 'igdb')));
+        if (media.length) {
+          await tx.insert(gameMedia).values(
+            media.map((m, position) => ({
+              gameId: row.id,
+              kind: m.kind,
+              url: igdbImageUrl(m.img.image_id, m.size),
+              source: 'igdb',
+              width: m.img.width ?? null,
+              height: m.img.height ?? null,
+              position,
+            })),
+          );
+        }
+      });
       await db
         .update(games)
         .set({
@@ -328,6 +428,9 @@ export async function runSync(db: Db, reg: Registry, opts: SyncOptions = {}) {
   const stats: Record<string, number> = { games: reg.games.length, mods: reg.mods.length };
   try {
     await syncRegistry(db, reg);
+    const art = await syncArtwork(db, reg, opts);
+    stats.artworkUpdated = art.updated;
+    errors.push(...art.errors);
     const rel = await syncReleases(db, reg, { ...opts, log });
     stats.releasesUpdated = rel.updated;
     errors.push(...rel.errors);

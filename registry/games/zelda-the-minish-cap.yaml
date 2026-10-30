@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../schema/game.schema.json
+id: zelda-the-minish-cap
+title: "The Legend of Zelda: The Minish Cap"
+platforms: [gba]
+# Hashes and region codes from the tmc-android README; crc32/md5 and the USA serial
+# are added automatically from the No-Intro DAT entry of the same dump.
+identifiers:
+  - { kind: sha1, value: b4bd50e4131b027c334547b4524e2dbbd4227130, platform: gba, region: USA }
+  - { kind: sha1, value: cff199b36ff173fb6faf152653d1bccf87c26fb7, platform: gba, region: EUR }
+  - { kind: serial, value: BZMP, platform: gba, region: EUR }
+  - { kind: serial, value: BZMJ, platform: gba, region: JPN }

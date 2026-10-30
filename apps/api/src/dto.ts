@@ -8,8 +8,19 @@ export const IdentifierDto = z
     platform: z.string().nullable(),
     region: z.string().nullable(),
     label: z.string().nullable(),
+    source: z.enum(['manifest', 'dat']).openapi({ description: 'dat = added from the libretro-database DAT entry of the same dump' }),
   })
   .openapi('Identifier');
+
+export const GameMediaDto = z
+  .object({
+    kind: z.enum(['cover', 'screenshot', 'title', 'artwork']),
+    url: z.string(),
+    width: z.number().nullable(),
+    height: z.number().nullable(),
+    source: z.enum(['igdb', 'libretro']),
+  })
+  .openapi('GameMedia');
 
 export const GameDto = z
   .object({
@@ -18,7 +29,9 @@ export const GameDto = z
     platforms: z.array(z.string()),
     igdb_id: z.number().nullable(),
     summary: z.string().nullable(),
-    cover_url: z.string().nullable(),
+    cover_url: z.string().nullable().openapi({ description: 'Box art / cover' }),
+    hero_url: z.string().nullable().openapi({ description: 'Wide image for banners: key art or a screenshot' }),
+    media: z.array(GameMediaDto),
     release_year: z.number().nullable(),
     identifiers: z.array(IdentifierDto),
     mod_count: z.number(),

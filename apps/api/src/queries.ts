@@ -2,6 +2,7 @@ import {
   devices,
   emulators,
   gameIdentifiers,
+  gameMedia,
   games,
   modMedia,
   modReleases,
@@ -21,6 +22,7 @@ type ModRow = typeof mods.$inferSelect;
 type GameRow = typeof games.$inferSelect;
 
 export type ModFilter = MatchQuery & { gameId?: string; type?: string; device?: string; q?: string };
+type LookupFilter = Omit<ModFilter, 'gameId' | 'identifiers'>;
 
 async function releasesFor(db: Db, releaseRows: (typeof modReleases.$inferSelect)[]): Promise<Map<number, ReleaseDto>> {
   const out = new Map<number, ReleaseDto>();
@@ -69,7 +71,7 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
   if (!rows.length) return [];
   const ids = rows.map((m) => m.id);
   const gameIds = [...new Set(rows.map((m) => m.gameId).filter((g): g is string => !!g))];
-  const [targets, latest, media, covers] = await Promise.all([
+  const [targets, latest, media, covers, gameArt] = await Promise.all([
     db.select().from(modTargets).where(inArray(modTargets.modId, ids)).orderBy(asc(modTargets.id)),
     db
       .selectDistinctOn([modReleases.modId])
@@ -79,6 +81,9 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
     db.select().from(modMedia).where(inArray(modMedia.modId, ids)).orderBy(asc(modMedia.position)),
     gameIds.length
       ? db.select({ id: games.id, coverUrl: games.coverUrl }).from(games).where(inArray(games.id, gameIds))
+      : Promise.resolve([]),
+    gameIds.length
+      ? db.select().from(gameMedia).where(inArray(gameMedia.gameId, gameIds)).orderBy(asc(gameMedia.position))
       : Promise.resolve([]),
   ]);
   const releases = await releasesFor(db, latest);
@@ -90,6 +95,11 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
       gallery.find((g) => g.source === 'manifest')?.url ??
       previews[0]?.top.url ??
       gallery[0]?.url ??
+      // A mod card is landscape: the game's screenshot fits better than its box art
+      (m.gameId
+        ? pickGameArt(covers.find((c) => c.id === m.gameId)?.coverUrl ?? null, gameArt.filter((a) => a.gameId === m.gameId))
+        : null
+      )?.screenshot ??
       covers.find((c) => c.id === m.gameId)?.coverUrl ??
       null;
     return {
@@ -140,7 +150,7 @@ export async function listMods(db: Db, f: ModFilter): Promise<ModDto[]> {
   const hydrated = await hydrateMods(db, rows);
   return hydrated
     .filter((m) => deviceMatches(m.devices, f.device))
-    .filter((m) => !(f.platform || f.emulator || f.identifier) || m._targets.some((t) => targetMatches(t, f)))
+    .filter((m) => !(f.platform || f.emulator || f.identifiers?.length) || m._targets.some((t) => targetMatches(t, f)))
     .map(strip);
 }
 
@@ -159,27 +169,57 @@ export async function getReleases(db: Db, modId: string): Promise<ReleaseDto[]> 
 async function hydrateGames(db: Db, rows: GameRow[]): Promise<GameDto[]> {
   if (!rows.length) return [];
   const ids = rows.map((g) => g.id);
-  const [idents, counts] = await Promise.all([
+  const [idents, counts, media] = await Promise.all([
     db.select().from(gameIdentifiers).where(inArray(gameIdentifiers.gameId, ids)).orderBy(asc(gameIdentifiers.id)),
     db
       .select({ gameId: mods.gameId, n: sql<number>`count(*)::int` })
       .from(mods)
       .where(inArray(mods.gameId, ids))
       .groupBy(mods.gameId),
+    db.select().from(gameMedia).where(inArray(gameMedia.gameId, ids)).orderBy(asc(gameMedia.position)),
   ]);
-  return rows.map((g) => ({
+  return rows.map((g) => {
+    const gm = media.filter((m) => m.gameId === g.id);
+    const art = pickGameArt(g.coverUrl, gm);
+    return {
     id: g.id,
     title: g.title,
     platforms: g.platforms,
     igdb_id: g.igdbId,
     summary: g.summary,
-    cover_url: g.coverUrl,
+    cover_url: art.cover,
+    hero_url: art.hero,
+    media: gm.map((m) => ({
+      kind: m.kind as GameDto['media'][number]['kind'],
+      url: m.url,
+      width: m.width,
+      height: m.height,
+      source: m.source as GameDto['media'][number]['source'],
+    })),
     release_year: g.releaseYear,
     identifiers: idents
       .filter((i) => i.gameId === g.id)
-      .map((i) => ({ kind: i.kind as IdentifierKind, value: i.value, platform: i.platform, region: i.region, label: i.label })),
+      .map((i) => ({
+        kind: i.kind as IdentifierKind,
+        value: i.value,
+        platform: i.platform,
+        region: i.region,
+        label: i.label,
+        source: i.source as 'manifest' | 'dat',
+      })),
     mod_count: counts.find((c) => c.gameId === g.id)?.n ?? 0,
-  }));
+    };
+  });
+}
+
+/** Cover: IGDB cover, else box art. Hero: key art, else a screenshot, else the title screen. */
+function pickGameArt(igdbCover: string | null, media: (typeof gameMedia.$inferSelect)[]) {
+  const first = (kind: string) => media.find((m) => m.kind === kind)?.url ?? null;
+  return {
+    cover: igdbCover ?? first('cover'),
+    hero: first('artwork') ?? first('screenshot') ?? first('title'),
+    screenshot: first('screenshot') ?? first('title'),
+  };
 }
 
 export async function listGames(db: Db, f: { q?: string; platform?: string; limit: number; offset: number }) {
@@ -206,7 +246,7 @@ export async function getGame(db: Db, id: string): Promise<GameDto | null> {
 export async function lookup(
   db: Db,
   ids: { kind: IdentifierKind; value: string }[],
-  f: Omit<ModFilter, 'gameId' | 'identifier'>,
+  f: LookupFilter,
 ) {
   for (const { kind, value } of ids) {
     const normalized = normalizeIdentifier(kind, value);
@@ -220,7 +260,13 @@ export async function lookup(
     const game = await getGame(db, hit.gameId);
     if (!game) continue;
     const matched = { kind, value: normalized };
-    const list = await listMods(db, { ...f, gameId: game.id, identifier: matched });
+    // An identifier added from the DAT (e.g. crc32) stands for the manifest identifier of the same dump
+    const same: { kind: string; value: string }[] = [matched];
+    if (hit.siblingOf) {
+      const [k, ...v] = hit.siblingOf.split(':');
+      same.push({ kind: k!, value: v.join(':') });
+    }
+    const list = await listMods(db, { ...f, gameId: game.id, identifiers: same });
     return { game, matched, mods: list };
   }
   return null;

@@ -20,7 +20,8 @@
         "patch",
         "companion_app",
         "shader",
-        "utility"
+        "utility",
+        "port"
       ]
     },
     "summary": {
