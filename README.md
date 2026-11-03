@@ -13,6 +13,10 @@ instead of copying files around by hand.
   screenshots and title screens from libretro-thumbnails, with no API key; IGDB adds covers and screenshots for the rest.
 - **Screenshots, automatically**: images in the mod's README, release notes and release assets are collected on
   every sync; pairs like `map-top.png` / `map-bottom.png` are shown as a two-screen preview.
+- **Community submissions**: sign in with GitHub or Discord, describe a mod and upload separate top and bottom
+  screen screenshots; moderators review it in `/admin` before it is published.
+- **Frontend API**: lookups by hash, file name, IGDB / RetroAchievements / ScreenScraper / LaunchBox id, platform
+  names as other catalogs spell them, batch lookups, a compact offline index, update checks and feeds.
 - **Registry**: mods are listed through YAML manifests reviewed as pull requests. DSG never re-hosts files:
   it resolves downloads from the authors' GitHub releases. See [docs/manifest.md](docs/manifest.md).
 
@@ -29,7 +33,8 @@ apps/api       Hono + OpenAPI: the public API (/v1/*), docs at /v1/docs
 apps/web       Next.js site with the two-screen UI (i18n via next-intl, English for now)
 apps/worker    Syncs registry -> Postgres, GitHub releases (ETag, sha256 digests), IGDB metadata
 packages/db    Drizzle schema and migrations (PostgreSQL)
-packages/schema  Zod schemas for manifests, shared by API, worker and CI
+packages/schema  Zod schemas for manifests and website submissions, shared by API, worker and CI
+packages/romdb   libretro-database DAT parsing and libretro-thumbnails URLs
 registry/      The manifests: catalog/, games/, mods/
 ```
 
@@ -50,13 +55,19 @@ This starts `db` (Postgres 17), `migrate` (one-shot), `api` on `127.0.0.1:3101`,
 `api.dsg.example.org` → 3101) and set `PUBLIC_SITE_URL` / `PUBLIC_API_URL` accordingly. If your reverse proxy
 runs in Docker, attach `web` and `api` to its network in a `docker-compose.override.yml` instead of publishing ports.
 
-Updating: `git pull && docker compose up -d --build`. Data lives in the `pgdata` volume.
+Updating: `git pull && docker compose up -d --build`. Data lives in the `pgdata` volume, uploaded screenshots in
+`uploads` (back both up).
 
 **Credentials** (only in `.env`, never committed):
 
 - `GITHUB_TOKEN` — a fine-grained token with no extra permissions; raises the GitHub limit from 60 to 5000 requests/hour.
 - `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` — create an application at <https://dev.twitch.tv/console/apps>.
   Without them the site works, just without cover art and summaries.
+- `INTERNAL_TOKEN` — shared secret between the website and the API (required).
+- `GITHUB_OAUTH_CLIENT_ID/SECRET`, `DISCORD_CLIENT_ID/SECRET` — sign-in for community submissions. Create an OAuth app
+  on each site with callback `<PUBLIC_SITE_URL>/auth/callback/github` (or `/discord`). `ADMIN_GITHUB_LOGINS` /
+  `ADMIN_DISCORD_IDS` say who becomes admin; admins see the moderation queue at `/admin`.
+- `RA_API_KEY` — optional, links dumps to RetroAchievements game ids.
 - `ADMIN_TOKEN` — protects `POST /admin/sync`. Add it and `DSG_API_URL` as repository secrets
   (`DSG_ADMIN_TOKEN`, `DSG_API_URL`) so merging a manifest triggers a sync right away.
 
@@ -91,6 +102,5 @@ After changing the manifest schema, run `pnpm registry:schema` to refresh `regis
 
 - Reference client (`dsg` CLI): hash a ROM → lookup → download → verify sha256 → install
 - Import No-Intro/Redump hashes from libretro-database to recognise more dumps
-- GitHub login and a submission form on the site
 - Integrations with Android frontends and emulators
 - More languages (add `apps/web/messages/<locale>.json` and the locale in `apps/web/i18n/request.ts`)

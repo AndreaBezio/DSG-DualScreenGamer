@@ -1,5 +1,14 @@
 # Adding a mod to DSG
 
+There are two ways:
+
+- **On the website** (`/submit`): sign in with GitHub or Discord, fill in the form, upload a top-screen and a
+  bottom-screen screenshot for each moment you want to show, link the files (direct links, a download page, or a
+  GitHub repo to follow), and send it for review. A moderator approves it; later edits go through review again.
+  Your ROM can be hashed in the browser to recognise the game: the file is never uploaded.
+- **With a manifest** in this repository, described below. Best when the mod lives on GitHub and you like pull
+  requests.
+
 Mods are listed with YAML files in [`registry/`](../registry). You open a pull request, CI validates it, and once
 merged the worker picks up your GitHub releases automatically, including every future release.
 

@@ -38,6 +38,18 @@ services:
       PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:3101}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-120}
       TRUST_PROXY: ${TRUST_PROXY:-true}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://localhost:3100}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?set INTERNAL_TOKEN in .env}
+      UPLOAD_DIR: /data/uploads
+      UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-10}
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      ADMIN_GITHUB_LOGINS: ${ADMIN_GITHUB_LOGINS:-}
+      ADMIN_DISCORD_IDS: ${ADMIN_DISCORD_IDS:-}
+    volumes:
+      - uploads:/data/uploads
     ports:
       - "${API_BIND:-127.0.0.1}:${API_PORT:-3101}:3001"
     healthcheck:
@@ -59,8 +71,12 @@ services:
       SYNC_HASH_MAX_BYTES: ${SYNC_HASH_MAX_BYTES:-0}
       REGISTRY_GIT_URL: ${REGISTRY_GIT_URL:-}
       REGISTRY_GIT_BRANCH: ${REGISTRY_GIT_BRANCH:-main}
+      REGISTRY_CHECKOUT_DIR: /data/registry-repo
+      RA_API_KEY: ${RA_API_KEY:-}
+      UPLOAD_DIR: /data/uploads
     volumes:
-      - registry:/data
+      - registry:/data/registry-repo
+      - uploads:/data/uploads
     depends_on:
       migrate: { condition: service_completed_successfully }
 
@@ -72,6 +88,9 @@ services:
       API_INTERNAL_URL: http://api:3001
       PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:3101}
       PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://localhost:3100}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?set INTERNAL_TOKEN in .env}
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
     ports:
       - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3100}:3000"
     depends_on:
@@ -80,3 +99,4 @@ services:
 volumes:
   pgdata:
   registry:
+  uploads:

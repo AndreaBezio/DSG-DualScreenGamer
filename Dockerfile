@@ -16,7 +16,7 @@ RUN pnpm install --frozen-lockfile
 
 # Server image skips the site's dependencies (Next/React)
 FROM base AS server
-RUN apk add --no-cache git && mkdir -p /data && chown node:node /data
+RUN apk add --no-cache git && mkdir -p /data/uploads /data/registry-repo && chown -R node:node /data
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/

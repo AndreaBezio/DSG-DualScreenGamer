@@ -1,9 +1,9 @@
 # DSG API v1
 
-Read-only JSON API for emulators, frontends and launchers. The interactive reference (OpenAPI 3.1) is served at
+JSON API for emulators, frontends and launchers. The interactive reference (OpenAPI 3.1) is served at
 `/v1/docs`, the raw document at `/v1/openapi.json`.
 
-- No authentication. CORS is open for `GET`.
+- No authentication for everything below. CORS is open for `GET` and `POST`.
 - **Send a `User-Agent`** that names your app, e.g. `MyEmu/1.2 (+https://example.org)`. Requests without one get `400`.
 - Rate limit: 120 requests/minute per IP by default (`RateLimit-*` headers, `429` + `Retry-After` when exceeded).
 - Responses are cacheable for 60 s. Error bodies are `{ "error": "…" }`.
@@ -24,11 +24,22 @@ Read-only JSON API for emulators, frontends and launchers. The interactive refer
 
 | Parameter | Meaning |
 | --- | --- |
-| `sha1` `md5` `crc32` `title_id` `serial` `steam_appid` `gog_id` `android_pkg` | At least one. Several are tried in this order; the first known one wins. Case and `0x` prefixes don't matter. |
-| `platform` | Platform id (`/v1/platforms`). Recommended: avoids CRC32/serial clashes across systems. |
+| `sha1` `md5` `crc32` `title_id` `serial` `steam_appid` `gog_id` `android_pkg` | Dump or store identifiers. Several are tried in this order; the first known one wins. Case and `0x` prefixes don't matter. |
+| `retroachievements` (or `ra`) `screenscraper` `launchbox` | Game ids in those catalogs, as a frontend knows them after scraping. |
+| `igdb` | IGDB game id. Names the game, not a dump: mods restricted to one region still match. |
+| `filename` | No-Intro / Redump file name; path and extension are ignored (`/roms/Legend of Zelda, The - The Minish Cap (USA).gba`). |
+| `platform` | Platform id or another catalog's name for it (see below). Recommended: avoids CRC32/serial clashes across systems. |
 | `emulator`, `emulator_version` | Only mods compatible with this emulator (`/v1/emulators`) and version. |
 | `device` | Only mods meant for this device (`/v1/devices`), plus mods with no device restriction. |
-| `type` | `dual_screen_layout`, `texture_pack`, `patch`, `companion_app`, `shader`, `utility`. |
+| `type` | `dual_screen_layout`, `port`, `texture_pack`, `patch`, `companion_app`, `shader`, `utility`. |
+
+Send at least one identifier, `igdb` or `filename`.
+
+**Naming platforms.** `platform=` accepts DSG's id (`3ds`), an alias (`n3ds`, `psx`, `gamecube`…), or another
+catalog's id with a prefix: `igdb:37`, `ra:62` (RetroAchievements console), `screenscraper:17`,
+`launchbox:Nintendo 3DS`, `libretro:Nintendo - Nintendo 3DS`, `thegamesdb:4912`. The values come from
+`registry/catalog/platforms.yaml`; for nds/3ds/gba/switch/ps2 they match CocoonFE's platform files, so a frontend
+can pass its own platform definition straight through.
 
 `200` → `{ game, matched: { kind, value }, mods: Mod[] }`. `404` when DSG doesn't know the game. A known game
 with no compatible mod returns `200` with `mods: []`.
@@ -48,6 +59,49 @@ only to those exact dumps (e.g. one region).
 | `GET /v1/platforms` · `/v1/emulators` · `/v1/devices` | Catalog. Emulators document their path variables. |
 | `GET /v1/index.json` | Everything in one document for offline caches. Send `If-None-Match` with the last `ETag`: `304` when unchanged. |
 | `GET /v1/status` | Last sync time and outcome. |
+| `POST /v1/lookup/batch` | Up to 500 lookups at once (see below). |
+| `GET /v1/index/compact.json` | Every key of every game that has mods (see below). |
+| `POST /v1/updates` · `GET /v1/updates?installed=` | Which installed mods have a newer compatible release. |
+| `GET /v1/feed.atom` · `/v1/feed.json` | New mods and releases (`?game=&type=&device=`). |
+
+## For frontends with large libraries
+
+**Batch lookup.** Same keys as `/v1/lookup`, one object per game, plus an optional `ref` echoed back:
+
+```bash
+curl -A "MyFrontend/1.0" -H 'content-type: application/json' https://api.example.org/v1/lookup/batch -d '{
+  "platform": "n3ds", "device": "ayn-thor",
+  "items": [
+    { "ref": "Zelda.gba", "filename": "Legend of Zelda, The - The Minish Cap (USA).gba" },
+    { "ref": 42, "crc32": "ABCEBBB1" },
+    { "ref": "game.3ds", "title_id": "0004000000030800" }
+  ]
+}'
+```
+
+The answer has one `results` entry per item, in order (`{ ref, game_id, matched, mod_ids }`), and every matching mod
+once in `mods`.
+
+**Compact index.** `GET /v1/index/compact.json` returns `{ keys: { "sha1:…": game_id, "crc32:…": …,
+"igdb:1035": … }, games: { game_id: [mod_id, …] } }` for games that have mods. Keep it on the device, refresh it with
+`If-None-Match` (`304` when unchanged), and badge "dual-screen mod available" across a whole library without one
+request per game.
+
+**Updates.** Send what is installed and get back only what has a newer release that still matches the client:
+
+```bash
+curl -A "MyEmu/1.0" "https://api.example.org/v1/updates?installed=tmc-android-dual-screen@1.1&device=ayn-thor"
+```
+
+## Integrating DSG into a frontend (e.g. Cocoon)
+
+1. When importing or scraping a library, POST the files to `/v1/lookup/batch` with the best keys you have: the
+   ROM hash if you compute one, otherwise the file name (No-Intro sets match by name), the IGDB / ScreenScraper /
+   LaunchBox / RetroAchievements id your scraper found, and `platform` in your own naming (`n3ds`, `igdb:37`…).
+2. Store the `mod_ids` next to each game; show a badge and the mod's `cover_url` / `previews` (top + bottom screen).
+3. On "Install", download `latest_release.assets`, check `sha256`, run `install` (or open `source_url` when
+   `manual_download` is true).
+4. Periodically call `/v1/updates` with what you installed, and refresh `compact.json`.
 
 ## Images
 
