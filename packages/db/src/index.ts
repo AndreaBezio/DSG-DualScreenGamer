@@ -11,3 +11,7 @@ export function createDb(url = process.env.DATABASE_URL ?? 'postgres://dsg:dsg@l
 }
 
 export type Db = ReturnType<typeof createDb>;
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+export type DbOrTx = Db | Tx;
+
+export * from './write.ts';

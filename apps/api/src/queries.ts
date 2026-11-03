@@ -11,12 +11,13 @@ import {
   platforms,
   releaseAssets,
   syncRuns,
+  isGithubSource,
   type Db,
 } from '@dsg/db';
 import { normalizeIdentifier, type IdentifierKind } from '@dsg/schema';
 import { and, arrayContains, asc, desc, eq, ilike, inArray, sql, type SQL } from 'drizzle-orm';
 import type { GameDto, MediaDto, ModDto, ReleaseDto } from './dto.ts';
-import { deviceMatches, targetMatches, type MatchQuery } from './match.ts';
+import { deviceMatches, targetMatches, type MatchQuery, type TargetRow } from './match.ts';
 
 type ModRow = typeof mods.$inferSelect;
 type GameRow = typeof games.$inferSelect;
@@ -91,7 +92,12 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
     const t = targets.filter((x) => x.modId === m.id);
     const rel = latest.find((r) => r.modId === m.id);
     const { gallery, previews } = shapeMedia(media.filter((x) => x.modId === m.id));
+    // Community uploads: the submitter's chosen cover sits at the lowest position
+    const uploaded = media
+      .filter((x) => x.modId === m.id && x.source === 'upload' && x.kind !== 'bottom')
+      .sort((a, b) => a.position - b.position)[0];
     const cover =
+      uploaded?.url ??
       gallery.find((g) => g.source === 'manifest')?.url ??
       previews[0]?.top.url ??
       gallery[0]?.url ??
@@ -112,7 +118,13 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
       authors: m.authors,
       license: m.license,
       homepage: m.homepage,
-      source_repo: m.source.github,
+      origin: m.origin as ModDto['origin'],
+      source_repo: isGithubSource(m.source) ? m.source.github : null,
+      source_url: isGithubSource(m.source)
+        ? `https://github.com/${m.source.github}`
+        : (m.source.page_url ?? m.homepage ?? null),
+      // Community mods without a direct file link must be fetched by hand from source_url
+      manual_download: !isGithubSource(m.source) && !(rel && releases.get(rel.id)?.assets.length),
       tags: m.tags,
       cover_url: cover,
       media: gallery,
@@ -137,25 +149,45 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
 
 const strip = ({ _targets, ...m }: ModDto & { _targets: unknown }): ModDto => m;
 
+type Hydrated = Awaited<ReturnType<typeof hydrateMods>>[number];
+
+/** Applies device / platform / emulator / dump filters to hydrated mods. */
+export function filterMods(list: (ModDto & { _targets: TargetRow[] })[], f: ModFilter): ModDto[] {
+  return list
+    .filter((m) => deviceMatches(m.devices, f.device))
+    .filter((m) => !(f.platform || f.emulator || f.identifiers?.length) || m._targets.some((t) => targetMatches(t, f)))
+    .map(strip);
+}
+
 export async function listMods(db: Db, f: ModFilter): Promise<ModDto[]> {
-  const where: SQL[] = [];
+  const where: SQL[] = [eq(mods.published, true)];
   if (f.gameId) where.push(eq(mods.gameId, f.gameId));
   if (f.type) where.push(eq(mods.type, f.type));
   if (f.q) where.push(ilike(mods.name, `%${f.q.replace(/[%_]/g, '\\$&')}%`));
   const rows = await db
     .select()
     .from(mods)
-    .where(where.length ? and(...where) : undefined)
+    .where(and(...where))
     .orderBy(sql`${mods.lastReleaseAt} desc nulls last`, asc(mods.name));
-  const hydrated = await hydrateMods(db, rows);
-  return hydrated
-    .filter((m) => deviceMatches(m.devices, f.device))
-    .filter((m) => !(f.platform || f.emulator || f.identifiers?.length) || m._targets.some((t) => targetMatches(t, f)))
-    .map(strip);
+  return filterMods(await hydrateMods(db, rows), f);
 }
 
-export async function getMod(db: Db, id: string): Promise<ModDto | null> {
-  const rows = await db.select().from(mods).where(eq(mods.id, id));
+/** Published mods of many games at once, still unfiltered (for batch lookups). */
+export async function modsForGames(db: Db, gameIds: string[]): Promise<Hydrated[]> {
+  if (!gameIds.length) return [];
+  const rows = await db
+    .select()
+    .from(mods)
+    .where(and(eq(mods.published, true), inArray(mods.gameId, gameIds)))
+    .orderBy(sql`${mods.lastReleaseAt} desc nulls last`, asc(mods.name));
+  return hydrateMods(db, rows);
+}
+
+export async function getMod(db: Db, id: string, opts: { includeUnpublished?: boolean } = {}): Promise<ModDto | null> {
+  const rows = await db
+    .select()
+    .from(mods)
+    .where(opts.includeUnpublished ? eq(mods.id, id) : and(eq(mods.id, id), eq(mods.published, true)));
   const [m] = await hydrateMods(db, rows);
   return m ? strip(m) : null;
 }
@@ -174,7 +206,7 @@ async function hydrateGames(db: Db, rows: GameRow[]): Promise<GameDto[]> {
     db
       .select({ gameId: mods.gameId, n: sql<number>`count(*)::int` })
       .from(mods)
-      .where(inArray(mods.gameId, ids))
+      .where(and(inArray(mods.gameId, ids), eq(mods.published, true)))
       .groupBy(mods.gameId),
     db.select().from(gameMedia).where(inArray(gameMedia.gameId, ids)).orderBy(asc(gameMedia.position)),
   ]);
@@ -242,23 +274,33 @@ export async function getGame(db: Db, id: string): Promise<GameDto | null> {
   return g ?? null;
 }
 
-/** The emulator entry point: "I'm about to boot this dump — what mods exist for it?" */
-export async function lookup(
-  db: Db,
-  ids: { kind: IdentifierKind; value: string }[],
-  f: LookupFilter,
-) {
-  for (const { kind, value } of ids) {
+export type LookupKeys = {
+  /** Tried in order: the first known one wins */
+  identifiers: { kind: IdentifierKind; value: string }[];
+  igdb?: number;
+  /** A No-Intro / Redump file name, with or without path and extension */
+  filename?: string;
+};
+
+type GameHit = { gameId: string; matched: { kind: string; value: string }; same: { kind: string; value: string }[] };
+
+/** "Legend of Zelda, The - The Minish Cap (USA).gba" or a full path -> DAT entry name. */
+export function datNameFromFilename(name: string): string {
+  const base = name.split(/[\\/]/).pop()!.trim();
+  return base.replace(/\.(zip|7z|[a-z0-9]{2,4})$/i, '');
+}
+
+/** Finds the game for one set of keys, honouring the platform when the identifier carries one. */
+export async function findGame(db: Db, keys: LookupKeys, platform?: string): Promise<GameHit | null> {
+  for (const { kind, value } of keys.identifiers) {
     const normalized = normalizeIdentifier(kind, value);
-    const [hit] = await db
+    const rows = await db
       .select()
       .from(gameIdentifiers)
       .where(and(eq(gameIdentifiers.kind, kind), eq(gameIdentifiers.value, normalized)));
-    if (!hit) continue;
     // A CRC32 or serial tagged with another platform is a different game
-    if (f.platform && hit.platform && hit.platform !== f.platform) continue;
-    const game = await getGame(db, hit.gameId);
-    if (!game) continue;
+    const hit = rows.find((r) => !platform || !r.platform || r.platform === platform);
+    if (!hit) continue;
     const matched = { kind, value: normalized };
     // An identifier added from the DAT (e.g. crc32) stands for the manifest identifier of the same dump
     const same: { kind: string; value: string }[] = [matched];
@@ -266,10 +308,87 @@ export async function lookup(
       const [k, ...v] = hit.siblingOf.split(':');
       same.push({ kind: k!, value: v.join(':') });
     }
-    const list = await listMods(db, { ...f, gameId: game.id, identifiers: same });
-    return { game, matched, mods: list };
+    return { gameId: hit.gameId, matched, same };
+  }
+  if (keys.filename) {
+    const label = datNameFromFilename(keys.filename);
+    const [hit] = await db
+      .select()
+      .from(gameIdentifiers)
+      .where(and(eq(gameIdentifiers.label, label), eq(gameIdentifiers.source, 'dat')))
+      .limit(1);
+    if (hit && (!platform || !hit.platform || hit.platform === platform)) {
+      const same = hit.siblingOf ? [{ kind: hit.siblingOf.split(':')[0]!, value: hit.siblingOf.split(':').slice(1).join(':') }] : [];
+      return { gameId: hit.gameId, matched: { kind: 'filename', value: label }, same };
+    }
+  }
+  if (keys.igdb) {
+    const [g] = await db.select({ id: games.id, platforms: games.platforms }).from(games).where(eq(games.igdbId, keys.igdb));
+    if (g && (!platform || g.platforms.includes(platform))) {
+      // An IGDB id names the game, not a dump: mods restricted to specific dumps still match
+      return { gameId: g.id, matched: { kind: 'igdb', value: String(keys.igdb) }, same: [] };
+    }
   }
   return null;
+}
+
+/** The emulator entry point: "I'm about to boot this dump — what mods exist for it?" */
+export async function lookup(db: Db, keys: LookupKeys, f: LookupFilter) {
+  const hit = await findGame(db, keys, f.platform);
+  if (!hit) return null;
+  const game = await getGame(db, hit.gameId);
+  if (!game) return null;
+  const list = await listMods(db, { ...f, gameId: game.id, identifiers: hit.same.length ? hit.same : undefined });
+  return { game, matched: hit.matched, mods: list };
+}
+
+let platformCache: { at: number; rows: (typeof platforms.$inferSelect)[] } | null = null;
+
+/**
+ * Accepts our platform id, an alias (`n3ds`) or another catalog's id:
+ * `igdb:24`, `ra:5`, `screenscraper:12`, `launchbox:Nintendo DS`, `libretro:Nintendo - Game Boy Advance`, `thegamesdb:5`.
+ */
+export async function resolvePlatform(db: Db, value: string): Promise<string | null> {
+  if (!platformCache || Date.now() - platformCache.at > 60_000) {
+    platformCache = { at: Date.now(), rows: await db.select().from(platforms) };
+  }
+  const v = value.trim();
+  const lower = v.toLowerCase();
+  const m = v.match(/^([a-z]+):(.+)$/i);
+  for (const p of platformCache.rows) {
+    const x = p.externalIds;
+    if (p.id === lower || x.aliases?.includes(lower)) return p.id;
+    if (!m) continue;
+    const [, ns, id] = m as unknown as [string, string, string];
+    switch (ns.toLowerCase()) {
+      case 'igdb':
+        if (x.igdb === Number(id)) return p.id;
+        break;
+      case 'ra':
+      case 'retroachievements':
+        if (x.retroachievements?.includes(Number(id))) return p.id;
+        break;
+      case 'ss':
+      case 'screenscraper':
+        if (x.screenscraper === Number(id)) return p.id;
+        break;
+      case 'tgdb':
+      case 'thegamesdb':
+        if (x.thegamesdb === Number(id)) return p.id;
+        break;
+      case 'launchbox':
+        if (x.launchbox?.toLowerCase() === id.toLowerCase()) return p.id;
+        break;
+      case 'libretro':
+        if (x.libretro?.toLowerCase() === id.toLowerCase()) return p.id;
+        break;
+    }
+  }
+  return null;
+}
+
+export function clearPlatformCache() {
+  platformCache = null;
 }
 
 export async function catalog(db: Db) {

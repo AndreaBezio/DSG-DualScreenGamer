@@ -8,6 +8,24 @@ const app = createApp(db, {
   rateLimitPerMinute: Number(process.env.RATE_LIMIT_PER_MINUTE ?? 120),
   trustProxy: process.env.TRUST_PROXY === 'true',
   publicUrl: process.env.PUBLIC_API_URL,
+  siteUrl: process.env.PUBLIC_SITE_URL,
+  account: {
+    internalToken: process.env.INTERNAL_TOKEN,
+    uploadDir: process.env.UPLOAD_DIR ?? '/data/uploads',
+    uploadMaxBytes: Number(process.env.UPLOAD_MAX_MB ?? 10) * 1048576,
+    oauth: {
+      ...(process.env.GITHUB_OAUTH_CLIENT_ID
+        ? { github: { clientId: process.env.GITHUB_OAUTH_CLIENT_ID, clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET ?? '' } }
+        : {}),
+      ...(process.env.DISCORD_CLIENT_ID
+        ? { discord: { clientId: process.env.DISCORD_CLIENT_ID, clientSecret: process.env.DISCORD_CLIENT_SECRET ?? '' } }
+        : {}),
+    },
+    admins: {
+      github: (process.env.ADMIN_GITHUB_LOGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+      discord: (process.env.ADMIN_DISCORD_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    },
+  },
 });
 
 const port = Number(process.env.PORT ?? 3001);

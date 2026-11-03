@@ -90,7 +90,7 @@ export const MediaDto = z
     url: z.string(),
     width: z.number().nullable(),
     height: z.number().nullable(),
-    source: z.enum(['manifest', 'release', 'readme', 'asset']).openapi({ description: 'Where DSG found the image' }),
+    source: z.enum(['manifest', 'upload', 'release', 'readme', 'asset']).openapi({ description: 'Where DSG found the image' }),
     caption: z.string().nullable(),
   })
   .openapi('Media');
@@ -110,7 +110,10 @@ export const ModDto = z
     authors: z.array(z.object({ name: z.string(), github: z.string().optional() })),
     license: z.string(),
     homepage: z.string().nullable(),
-    source_repo: z.string().openapi({ example: 'JoeCorrell/AYN-Thor-Dualscreen-Mods' }),
+    origin: z.enum(['registry', 'community']).openapi({ description: 'registry = YAML manifest on GitHub; community = submitted on the website' }),
+    source_repo: z.string().nullable().openapi({ example: 'JoeCorrell/AYN-Thor-Dualscreen-Mods' }),
+    source_url: z.string().nullable().openapi({ description: 'Project page' }),
+    manual_download: z.boolean().openapi({ description: 'No direct file link: send the user to source_url' }),
     tags: z.array(z.string()),
     cover_url: z.string().nullable().openapi({ description: 'Best image for a card: manifest screenshot, preview, found image or game cover' }),
     media: z.array(MediaDto).openapi({ description: 'Gallery images (not part of a preview pair)' }),

@@ -13,6 +13,10 @@ export const IDENTIFIER_KINDS = [
   'steam_appid',
   'gog_id',
   'android_pkg',
+  /** Game ids in other catalogs, as used by frontends after scraping */
+  'retroachievements',
+  'screenscraper',
+  'launchbox',
 ] as const;
 export const IdentifierKind = z.enum(IDENTIFIER_KINDS);
 export type IdentifierKind = z.infer<typeof IdentifierKind>;
@@ -28,6 +32,9 @@ const PATTERNS: Record<IdentifierKind, RegExp> = {
   steam_appid: /^[1-9][0-9]*$/,
   gog_id: /^[1-9][0-9]*$/,
   android_pkg: /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/,
+  retroachievements: /^[1-9][0-9]*$/,
+  screenscraper: /^[1-9][0-9]*$/,
+  launchbox: /^[1-9][0-9]*$/,
 };
 
 /** Canonical form used for storage and lookup, so clients don't have to care about casing. */

@@ -10,12 +10,14 @@
   },
   "dependencies": {
     "@dsg/db": "workspace:*",
+    "@dsg/romdb": "workspace:*",
     "@dsg/schema": "workspace:*",
     "@hono/node-server": "2.1.5",
     "@hono/zod-openapi": "1.6.3",
     "@scalar/hono-api-reference": "0.12.17",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.14",
+    "sharp": "0.35.5",
     "zod": "4.6.7"
   }
 }

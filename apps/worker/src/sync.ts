@@ -13,10 +13,13 @@ import {
   releaseAssets,
   syncRuns,
   syncState,
+  idsOwnedBy,
+  writeGame,
+  writeMod,
   type Db,
 } from '@dsg/db';
 import { normalizeIdentifier } from '@dsg/schema';
-import { and, desc, eq, isNull, like, lt, ne, notInArray, or } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, like, lt, ne, notInArray, or } from 'drizzle-orm';
 import { GitHubClient, resolveReleases, type GhAsset } from './github.ts';
 import { artworkSignature, fetchDat, indexDat, libretroArtwork, urlExists, type ArtworkMatch, type DatGame } from './artwork.ts';
 import type { FetchLike } from './github.ts';
@@ -57,13 +60,34 @@ export function dbTokenStore(db: Db): TokenStore {
   };
 }
 
-/** Mirrors the registry into the database. Rows that left the registry are removed. */
-export async function syncRegistry(db: Db, reg: Registry): Promise<void> {
+/**
+ * Mirrors the registry into the database. Registry rows that left the registry are removed;
+ * community rows (submitted on the website) are never touched, and a registry manifest
+ * whose id is already taken by a community mod is skipped with an error.
+ */
+export async function syncRegistry(db: Db, reg: Registry): Promise<{ errors: string[] }> {
+  const errors: string[] = [];
   await db.transaction(async (tx) => {
     // DAT-derived identifiers are re-added by syncArtwork; dropping them first avoids clashes with manifest edits
     await tx.delete(gameIdentifiers).where(eq(gameIdentifiers.source, 'dat'));
     for (const p of reg.catalog.platforms) {
-      const row = { id: p.id, name: p.name, manufacturer: p.manufacturer ?? null, kind: p.kind, screens: p.screens };
+      const row = {
+        id: p.id,
+        name: p.name,
+        manufacturer: p.manufacturer ?? null,
+        kind: p.kind,
+        screens: p.screens,
+        externalIds: {
+          igdb: p.igdb,
+          screenscraper: p.screenscraper,
+          retroachievements: p.retroachievements,
+          launchbox: p.launchbox,
+          thegamesdb: p.thegamesdb,
+          libretro: p.libretro?.system,
+          libretroDat: p.libretro?.dat,
+          aliases: p.aliases,
+        },
+      };
       await tx.insert(platforms).values(row).onConflictDoUpdate({ target: platforms.id, set: row });
     }
     for (const e of reg.catalog.emulators) {
@@ -76,61 +100,62 @@ export async function syncRegistry(db: Db, reg: Registry): Promise<void> {
     }
 
     for (const g of reg.games) {
-      const row = { id: g.id, title: g.title, platforms: g.platforms, igdbId: g.igdb ?? null };
-      // Keep an IGDB id resolved by the worker unless the manifest pins one
-      const set = g.igdb ? { ...row, updatedAt: new Date() } : { title: g.title, platforms: g.platforms, updatedAt: new Date() };
-      await tx.insert(games).values(row).onConflictDoUpdate({ target: games.id, set });
-      await tx.delete(gameIdentifiers).where(eq(gameIdentifiers.gameId, g.id));
-      if (g.identifiers.length) {
-        await tx.insert(gameIdentifiers).values(
-          g.identifiers.map((i) => ({
-            gameId: g.id,
-            kind: i.kind,
-            value: normalizeIdentifier(i.kind, i.value),
-            platform: i.platform ?? null,
-            region: i.region ?? null,
-            label: i.label ?? null,
-          })),
-        );
-      }
-    }
-
-    for (const m of reg.mods) {
-      const row = {
-        id: m.id,
-        name: m.name,
-        type: m.type,
-        summary: m.summary,
-        description: m.description ?? null,
-        gameId: m.game ?? null,
-        authors: m.authors,
-        license: m.license,
-        homepage: m.homepage ?? null,
-        tags: m.tags,
-        requires: m.requires,
-        devices: m.devices,
-        source: m.source,
-        install: m.install,
-      };
-      await tx.insert(mods).values(row).onConflictDoUpdate({ target: mods.id, set: { ...row, updatedAt: new Date() } });
-      await tx.delete(modMedia).where(and(eq(modMedia.modId, m.id), eq(modMedia.source, 'manifest')));
-      const media = manifestMedia(m);
-      if (media.length) await tx.insert(modMedia).values(media.map((r) => ({ ...r, modId: m.id })));
-      await tx.delete(modTargets).where(eq(modTargets.modId, m.id));
-      await tx.insert(modTargets).values(
-        m.targets.map((t) => ({
-          modId: m.id,
-          platform: t.platform,
-          emulator: t.emulator ?? null,
-          minVersion: t.min_version ?? null,
-          maxVersion: t.max_version ?? null,
-          identifiers: t.identifiers.map((i) => ({ kind: i.kind, value: normalizeIdentifier(i.kind, i.value) })),
-        })),
+      await writeGame(
+        tx,
+        {
+          id: g.id,
+          title: g.title,
+          platforms: g.platforms,
+          // Keep an IGDB id resolved by the worker unless the manifest pins one
+          igdbId: g.igdb ?? undefined,
+          identifiers: g.identifiers.map((i) => ({ ...i, value: normalizeIdentifier(i.kind, i.value) })),
+        },
+        { origin: 'registry' },
       );
     }
 
+    const taken = await idsOwnedBy(tx, 'mods', reg.mods.map((m) => m.id), 'community');
+    for (const m of reg.mods) {
+      if (taken.has(m.id)) {
+        errors.push(`mod ${m.id}: id already used by a community mod, manifest skipped`);
+        continue;
+      }
+      await writeMod(
+        tx,
+        {
+          id: m.id,
+          name: m.name,
+          type: m.type,
+          summary: m.summary,
+          description: m.description,
+          gameId: m.game,
+          authors: m.authors,
+          license: m.license,
+          homepage: m.homepage,
+          tags: m.tags,
+          requires: m.requires,
+          devices: m.devices,
+          source: m.source,
+          install: m.install,
+          targets: m.targets.map((t) => ({
+            platform: t.platform,
+            emulator: t.emulator,
+            minVersion: t.min_version,
+            maxVersion: t.max_version,
+            identifiers: t.identifiers.map((i) => ({ kind: i.kind, value: normalizeIdentifier(i.kind, i.value) })),
+          })),
+        },
+        { source: 'manifest', rows: manifestMedia(m) },
+        { origin: 'registry' },
+      );
+    }
+
+    const registryOnly = (col: typeof mods.origin) => eq(col, 'registry');
     // Forget cached ETags/signatures of removed mods, so re-adding one starts from scratch
-    const removed = await tx.select({ id: mods.id }).from(mods).where(notInArray(mods.id, reg.mods.map((m) => m.id)));
+    const removed = await tx
+      .select({ id: mods.id })
+      .from(mods)
+      .where(and(registryOnly(mods.origin), notInArray(mods.id, reg.mods.map((m) => m.id))));
     for (const { id } of removed) {
       await tx
         .delete(syncState)
@@ -144,12 +169,23 @@ export async function syncRegistry(db: Db, reg: Registry): Promise<void> {
         );
     }
     // notInArray with an empty list matches everything, which is what an empty registry means
-    await tx.delete(mods).where(notInArray(mods.id, reg.mods.map((m) => m.id)));
-    await tx.delete(games).where(notInArray(games.id, reg.games.map((g) => g.id)));
+    await tx.delete(mods).where(and(registryOnly(mods.origin), notInArray(mods.id, reg.mods.map((m) => m.id))));
+    // A registry game that community mods still point at stays
+    const usedByCommunity = tx.select({ id: mods.gameId }).from(mods).where(and(eq(mods.origin, 'community'), isNotNull(mods.gameId)));
+    await tx
+      .delete(games)
+      .where(
+        and(
+          eq(games.origin, 'registry'),
+          notInArray(games.id, reg.games.map((g) => g.id)),
+          notInArray(games.id, usedByCommunity),
+        ),
+      );
     await tx.delete(emulators).where(notInArray(emulators.id, reg.catalog.emulators.map((e) => e.id)));
     await tx.delete(devices).where(notInArray(devices.id, reg.catalog.devices.map((d) => d.id)));
     await tx.delete(platforms).where(notInArray(platforms.id, reg.catalog.platforms.map((p) => p.id)));
   });
+  return { errors };
 }
 
 /** Pulls releases for every mod; unchanged repos cost nothing thanks to ETags. */
@@ -427,7 +463,7 @@ export async function runSync(db: Db, reg: Registry, opts: SyncOptions = {}) {
   const errors: string[] = [];
   const stats: Record<string, number> = { games: reg.games.length, mods: reg.mods.length };
   try {
-    await syncRegistry(db, reg);
+    errors.push(...(await syncRegistry(db, reg)).errors);
     const art = await syncArtwork(db, reg, opts);
     stats.artworkUpdated = art.updated;
     errors.push(...art.errors);

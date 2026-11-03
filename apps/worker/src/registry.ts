@@ -104,6 +104,16 @@ export function loadRegistry(root: string): LoadResult {
   dupes(games.map((g) => g.id), 'game');
   dupes(mods.map((m) => m.id), 'mod');
 
+  // Every name a client may send as `platform=` must point to exactly one platform
+  const platformNames = new Map<string, string>();
+  for (const p of catalog.platforms) {
+    for (const n of [p.id, ...p.aliases]) {
+      const owner = platformNames.get(n);
+      if (owner && owner !== p.id) errors.push(`platform ${p.id}: alias "${n}" already names platform ${owner}`);
+      platformNames.set(n, p.id);
+    }
+  }
+
   for (const e of catalog.emulators) {
     for (const p of e.platforms) if (!platformIds.has(p)) errors.push(`emulator ${e.id}: unknown platform "${p}"`);
   }

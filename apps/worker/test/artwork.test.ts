@@ -19,6 +19,7 @@ const GBA = {
   name: 'Game Boy Advance',
   kind: 'handheld' as const,
   screens: 1,
+  aliases: [],
   libretro: { system: 'Nintendo - Game Boy Advance', dat: 'no-intro' as const },
 };
 

@@ -6,9 +6,9 @@ import type { Registry } from '../src/registry.ts';
 export const registry: Registry = {
   catalog: {
     platforms: [
-      { id: '3ds', name: 'Nintendo 3DS', kind: 'handheld', screens: 2 },
-      { id: 'gba', name: 'Game Boy Advance', kind: 'handheld', screens: 1, libretro: { system: 'Nintendo - Game Boy Advance', dat: 'no-intro' } },
-      { id: 'nds', name: 'Nintendo DS', kind: 'handheld', screens: 2 },
+      { id: '3ds', name: 'Nintendo 3DS', kind: 'handheld', screens: 2, igdb: 37, aliases: ['n3ds'] },
+      { id: 'gba', name: 'Game Boy Advance', kind: 'handheld', screens: 1, aliases: [], libretro: { system: 'Nintendo - Game Boy Advance', dat: 'no-intro' } },
+      { id: 'nds', name: 'Nintendo DS', kind: 'handheld', screens: 2, aliases: [] },
     ],
     emulators: [
       { id: 'azahar', name: 'Azahar', kind: 'emulator', platforms: ['3ds'], os: ['android'] },

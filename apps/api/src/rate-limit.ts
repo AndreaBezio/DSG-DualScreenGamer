@@ -1,8 +1,8 @@
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import { getConnInfo } from '@hono/node-server/conninfo';
 
 /** Fixed-window per-IP limiter. In memory: fine for a single API container. */
-export function rateLimit(perMinute: number, trustProxy: boolean): MiddlewareHandler {
+export function rateLimit(perMinute: number, trustProxy: boolean, skip?: (c: Context) => boolean): MiddlewareHandler {
   const hits = new Map<string, { n: number; reset: number }>();
   setInterval(() => {
     const now = Date.now();
@@ -10,6 +10,7 @@ export function rateLimit(perMinute: number, trustProxy: boolean): MiddlewareHan
   }, 60_000).unref();
 
   return async (c, next) => {
+    if (skip?.(c)) return next();
     let ip = trustProxy ? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() : undefined;
     if (!ip) {
       try {

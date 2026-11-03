@@ -11,6 +11,7 @@ COPY apps/worker/package.json apps/worker/
 COPY apps/web/package.json apps/web/
 COPY packages/db/package.json packages/db/
 COPY packages/schema/package.json packages/schema/
+COPY packages/romdb/package.json packages/romdb/
 RUN pnpm install --frozen-lockfile
 
 # Server image skips the site's dependencies (Next/React)
@@ -21,6 +22,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
 COPY packages/db/package.json packages/db/
 COPY packages/schema/package.json packages/schema/
+COPY packages/romdb/package.json packages/romdb/
 RUN pnpm install --frozen-lockfile --filter dsg --filter "@dsg/api..." --filter "@dsg/worker..." && pnpm store prune
 COPY tsconfig.base.json ./
 COPY packages packages

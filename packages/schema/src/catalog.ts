@@ -20,6 +20,13 @@ export const Platform = z
       .optional(),
     /** IGDB platform id, used to search games by title. */
     igdb: z.number().int().positive().optional(),
+    /** Ids other catalogs and frontends use for this platform; accepted as `platform=` in the API. */
+    screenscraper: z.number().int().positive().optional(),
+    retroachievements: z.array(z.number().int().positive()).optional(),
+    launchbox: z.string().optional(),
+    thegamesdb: z.number().int().positive().optional(),
+    /** Other short names, e.g. Cocoon's `n3ds`. */
+    aliases: z.array(z.string()).default([]),
   })
   .strict();
 export type Platform = z.infer<typeof Platform>;

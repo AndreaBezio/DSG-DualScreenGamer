@@ -24,7 +24,20 @@ export const platforms = pgTable('platforms', {
   manufacturer: text('manufacturer'),
   kind: text('kind').notNull(),
   screens: smallint('screens').notNull().default(1),
+  /** How other catalogs and frontends name this platform (see registry/catalog/platforms.yaml) */
+  externalIds: jsonb('external_ids').$type<PlatformExternalIds>().notNull().default(sql`'{}'`),
 });
+
+export type PlatformExternalIds = {
+  igdb?: number;
+  screenscraper?: number;
+  retroachievements?: number[];
+  launchbox?: string;
+  thegamesdb?: number;
+  libretro?: string;
+  libretroDat?: 'no-intro' | 'redump';
+  aliases?: string[];
+};
 
 export const emulators = pgTable('emulators', {
   id: text('id').primaryKey(),
@@ -56,6 +69,8 @@ export const games = pgTable(
     coverUrl: text('cover_url'),
     releaseYear: smallint('release_year'),
     metadataSyncedAt: timestamp('metadata_synced_at', { withTimezone: true }),
+    origin: text('origin').notNull().default('registry'),
+    ownerUserId: text('owner_user_id'),
     ...timestamps,
   },
   (t) => [index('games_title_idx').using('gin', sql`to_tsvector('simple', ${t.title})`)],
@@ -102,12 +117,23 @@ export const gameMedia = pgTable(
 );
 
 export type Author = { name: string; github?: string };
-export type ModSource = {
+export type GithubSource = {
   github: string;
   assets: { role: string; pattern: string }[];
   prereleases: boolean;
   auto_media: boolean;
   tag_pattern?: string;
+};
+/** Community mods may link files directly instead of following GitHub releases. */
+export type ManualSource = { manual: true; page_url?: string };
+export type ModSource = GithubSource | ManualSource;
+
+export const isGithubSource = (s: ModSource): s is GithubSource => 'github' in s;
+
+/** registry = YAML manifests in the repo; community = submitted on the website and approved. */
+const origin = {
+  origin: text('origin').notNull().default('registry'),
+  ownerUserId: text('owner_user_id'),
 };
 
 export const mods = pgTable(
@@ -129,6 +155,9 @@ export const mods = pgTable(
     install: jsonb('install').$type<unknown[]>().notNull(),
     stars: integer('stars'),
     lastReleaseAt: timestamp('last_release_at', { withTimezone: true }),
+    /** Moderators can hide a mod without deleting it */
+    published: boolean('published').notNull().default(true),
+    ...origin,
     ...timestamps,
   },
   (t) => [index('mods_game_idx').on(t.gameId), index('mods_type_idx').on(t.type)],
@@ -223,3 +252,79 @@ export const syncRuns = pgTable('sync_runs', {
   stats: jsonb('stats').$type<Record<string, number>>(),
   errors: jsonb('errors').$type<string[]>(),
 });
+
+/* ---------- Accounts and community submissions ---------- */
+
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  displayName: text('display_name').notNull(),
+  avatarUrl: text('avatar_url'),
+  /** user | moderator | admin */
+  role: text('role').notNull().default('user'),
+  banned: boolean('banned').notNull().default(false),
+  ...timestamps,
+});
+
+export const userAccounts = pgTable(
+  'user_accounts',
+  {
+    id: serial('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** github | discord */
+    provider: text('provider').notNull(),
+    providerUserId: text('provider_user_id').notNull(),
+    username: text('username').notNull(),
+  },
+  (t) => [uniqueIndex('user_accounts_provider_uq').on(t.provider, t.providerUserId)],
+);
+
+export const sessions = pgTable(
+  'sessions',
+  {
+    /** sha256 of the token: a leaked table does not leak sessions */
+    tokenHash: text('token_hash').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('sessions_user_idx').on(t.userId)],
+);
+
+/** Screenshots uploaded by users, stored as WebP under UPLOAD_DIR/<sha256>.webp */
+export const uploads = pgTable(
+  'uploads',
+  {
+    sha256: text('sha256').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    bytes: integer('bytes').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('uploads_user_idx').on(t.userId)],
+);
+
+export const submissions = pgTable(
+  'submissions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Set when the submission edits an already published mod */
+    modId: text('mod_id').references(() => mods.id, { onDelete: 'set null' }),
+    /** draft | pending | changes_requested | approved | rejected */
+    status: text('status').notNull().default('draft'),
+    payload: jsonb('payload').notNull(),
+    reviewNote: text('review_note'),
+    reviewerId: text('reviewer_id').references(() => users.id, { onDelete: 'set null' }),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index('submissions_status_idx').on(t.status), index('submissions_user_idx').on(t.userId)],
+);

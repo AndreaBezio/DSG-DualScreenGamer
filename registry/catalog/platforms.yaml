@@ -1,19 +1,139 @@
 # Platforms a game can run on. `screens` is the original hardware's screen count.
 # `libretro` names the libretro-database DAT (dump hashes -> No-Intro/Redump names -> libretro-thumbnails artwork).
-# `igdb` is the IGDB platform id, used to find games by title.
-- { id: gb, name: Game Boy, manufacturer: Nintendo, kind: handheld, igdb: 33, libretro: { system: Nintendo - Game Boy, dat: no-intro } }
-- { id: gbc, name: Game Boy Color, manufacturer: Nintendo, kind: handheld, igdb: 22, libretro: { system: Nintendo - Game Boy Color, dat: no-intro } }
-- { id: gba, name: Game Boy Advance, manufacturer: Nintendo, kind: handheld, igdb: 24, libretro: { system: Nintendo - Game Boy Advance, dat: no-intro } }
-- { id: nds, name: Nintendo DS, manufacturer: Nintendo, kind: handheld, screens: 2, igdb: 20, libretro: { system: Nintendo - Nintendo DS, dat: no-intro } }
-- { id: 3ds, name: Nintendo 3DS, manufacturer: Nintendo, kind: handheld, screens: 2, igdb: 37, libretro: { system: Nintendo - Nintendo 3DS, dat: no-intro } }
-- { id: n64, name: Nintendo 64, manufacturer: Nintendo, kind: console, igdb: 4, libretro: { system: Nintendo - Nintendo 64, dat: no-intro } }
-- { id: gc, name: GameCube, manufacturer: Nintendo, kind: console, igdb: 21, libretro: { system: Nintendo - GameCube, dat: redump } }
-- { id: wii, name: Wii, manufacturer: Nintendo, kind: console, igdb: 5, libretro: { system: Nintendo - Wii, dat: redump } }
-- { id: wiiu, name: Wii U, manufacturer: Nintendo, kind: console, screens: 2, igdb: 41 }
-- { id: switch, name: Nintendo Switch, manufacturer: Nintendo, kind: console, igdb: 130 }
-- { id: ps1, name: PlayStation, manufacturer: Sony, kind: console, igdb: 7, libretro: { system: Sony - PlayStation, dat: redump } }
-- { id: ps2, name: PlayStation 2, manufacturer: Sony, kind: console, igdb: 8, libretro: { system: Sony - PlayStation 2, dat: redump } }
-- { id: psp, name: PlayStation Portable, manufacturer: Sony, kind: handheld, igdb: 38, libretro: { system: Sony - PlayStation Portable, dat: redump } }
-- { id: psvita, name: PlayStation Vita, manufacturer: Sony, kind: handheld, igdb: 46 }
-- { id: pc, name: PC, kind: pc, igdb: 6 }
-- { id: android, name: Android, kind: mobile, igdb: 34 }
+# `igdb`, `screenscraper`, `retroachievements`, `launchbox`, `thegamesdb` and `aliases` let frontends name the
+# platform their own way in API calls (`platform=igdb:24`, `platform=ra:5`, `platform=n3ds`…).
+# Values for nds/3ds/gba/switch/ps2 match the CocoonFE platform files.
+- id: gb
+  name: Game Boy
+  manufacturer: Nintendo
+  kind: handheld
+  igdb: 33
+  retroachievements: [4]
+  launchbox: Nintendo Game Boy
+  libretro: { system: Nintendo - Game Boy, dat: no-intro }
+- id: gbc
+  name: Game Boy Color
+  manufacturer: Nintendo
+  kind: handheld
+  igdb: 22
+  retroachievements: [6]
+  launchbox: Nintendo Game Boy Color
+  libretro: { system: Nintendo - Game Boy Color, dat: no-intro }
+- id: gba
+  name: Game Boy Advance
+  manufacturer: Nintendo
+  kind: handheld
+  igdb: 24
+  screenscraper: 12
+  retroachievements: [5]
+  launchbox: Nintendo Game Boy Advance
+  thegamesdb: 5
+  libretro: { system: Nintendo - Game Boy Advance, dat: no-intro }
+- id: nds
+  name: Nintendo DS
+  manufacturer: Nintendo
+  kind: handheld
+  screens: 2
+  igdb: 20
+  screenscraper: 15
+  retroachievements: [18, 78]
+  launchbox: Nintendo DS
+  thegamesdb: 8
+  libretro: { system: Nintendo - Nintendo DS, dat: no-intro }
+- id: 3ds
+  name: Nintendo 3DS
+  manufacturer: Nintendo
+  kind: handheld
+  screens: 2
+  igdb: 37
+  screenscraper: 17
+  retroachievements: [62]
+  launchbox: Nintendo 3DS
+  thegamesdb: 4912
+  aliases: [n3ds]
+  libretro: { system: Nintendo - Nintendo 3DS, dat: no-intro }
+- id: n64
+  name: Nintendo 64
+  manufacturer: Nintendo
+  kind: console
+  igdb: 4
+  retroachievements: [2]
+  launchbox: Nintendo 64
+  libretro: { system: Nintendo - Nintendo 64, dat: no-intro }
+- id: gc
+  name: GameCube
+  manufacturer: Nintendo
+  kind: console
+  igdb: 21
+  retroachievements: [16]
+  launchbox: Nintendo GameCube
+  aliases: [gamecube, ngc]
+  libretro: { system: Nintendo - GameCube, dat: redump }
+- id: wii
+  name: Wii
+  manufacturer: Nintendo
+  kind: console
+  igdb: 5
+  retroachievements: [19]
+  launchbox: Nintendo Wii
+  libretro: { system: Nintendo - Wii, dat: redump }
+- id: wiiu
+  name: Wii U
+  manufacturer: Nintendo
+  kind: console
+  screens: 2
+  igdb: 41
+  launchbox: Nintendo Wii U
+- id: switch
+  name: Nintendo Switch
+  manufacturer: Nintendo
+  kind: console
+  igdb: 130
+  screenscraper: 225
+  launchbox: Nintendo Switch
+  thegamesdb: 4971
+- id: ps1
+  name: PlayStation
+  manufacturer: Sony
+  kind: console
+  igdb: 7
+  retroachievements: [12]
+  launchbox: Sony Playstation
+  aliases: [psx, playstation]
+  libretro: { system: Sony - PlayStation, dat: redump }
+- id: ps2
+  name: PlayStation 2
+  manufacturer: Sony
+  kind: console
+  igdb: 8
+  screenscraper: 58
+  retroachievements: [21]
+  launchbox: Sony Playstation 2
+  thegamesdb: 11
+  libretro: { system: Sony - PlayStation 2, dat: redump }
+- id: psp
+  name: PlayStation Portable
+  manufacturer: Sony
+  kind: handheld
+  igdb: 38
+  retroachievements: [41]
+  launchbox: Sony PSP
+  libretro: { system: Sony - PlayStation Portable, dat: redump }
+- id: psvita
+  name: PlayStation Vita
+  manufacturer: Sony
+  kind: handheld
+  igdb: 46
+  launchbox: Sony Playstation Vita
+  aliases: [vita]
+- id: pc
+  name: PC
+  kind: pc
+  igdb: 6
+  launchbox: Windows
+  aliases: [windows, steam]
+- id: android
+  name: Android
+  kind: mobile
+  igdb: 34
+  launchbox: Android
