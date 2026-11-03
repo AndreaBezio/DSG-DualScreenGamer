@@ -1,6 +1,7 @@
 import { createDb } from '@dsg/db';
 import { serve } from '@hono/node-server';
 import { createApp } from './app.ts';
+import { signerFromPem } from './signing.ts';
 
 const db = createDb();
 const app = createApp(db, {
@@ -10,6 +11,7 @@ const app = createApp(db, {
   publicUrl: process.env.PUBLIC_API_URL,
   siteUrl: process.env.PUBLIC_SITE_URL,
   installSalt: process.env.INSTALL_SALT || undefined,
+  signer: process.env.INDEX_SIGNING_KEY ? signerFromPem(process.env.INDEX_SIGNING_KEY) : undefined,
   account: {
     internalToken: process.env.INTERNAL_TOKEN,
     uploadDir: process.env.UPLOAD_DIR ?? '/data/uploads',

@@ -43,6 +43,7 @@ services:
       UPLOAD_DIR: /data/uploads
       UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-10}
       INSTALL_SALT: ${INSTALL_SALT:-}
+      INDEX_SIGNING_KEY: ${INDEX_SIGNING_KEY:-}
       GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
       GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
@@ -75,6 +76,7 @@ services:
       REGISTRY_CHECKOUT_DIR: /data/registry-repo
       RA_API_KEY: ${RA_API_KEY:-}
       UPLOAD_DIR: /data/uploads
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://localhost:3100}
     volumes:
       - registry:/data/registry-repo
       - uploads:/data/uploads

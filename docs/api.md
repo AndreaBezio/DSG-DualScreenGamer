@@ -63,6 +63,57 @@ only to those exact dumps (e.g. one region).
 | `GET /v1/index/compact.json` | Every key of every game that has mods (see below). |
 | `POST /v1/updates` · `GET /v1/updates?installed=` | Which installed mods have a newer compatible release. |
 | `GET /v1/feed.atom` · `/v1/feed.json` | New mods and releases (`?game=&type=&device=`). |
+| `GET /v1/devices/{id}` | A device (also by alias): screens, recommended emulator settings with sources, mod count, player reports. |
+| `GET /v1/mods/{id}/reports` | Player compatibility reports: summary by device and the latest 20. |
+| `POST /v1/mods/{id}/installs` | Count an install (see below). |
+| `GET /v1/keys.json` · `/v1/index.json.sig` | Public keys and the detached signature of `index.json`. |
+| `GET /v1/mods?sort=popular` | Order by installs in the last 30 days. |
+
+## Player reports, installs
+
+Every mod carries `compat` (`works` / `issues` / `broken`, overall and `by_device`) and `installs`
+(`total`, `last_30_days`). Show "verified on your device" from `compat.by_device[<device>]`.
+
+After installing a mod, tell DSG (optional, anonymous, counted once a day per client):
+
+```bash
+curl -A "MyEmu/1.0" -X POST https://api.example.org/v1/mods/tmc-android-dual-screen/installs -d '{"device":"ayn-thor"}'
+```
+
+DSG keeps no IP address: a client is recognised for one day by an HMAC of its address and user agent under a
+key that changes every day.
+
+## Signed indexes
+
+When the server has a signing key, `/v1/index.json` and `/v1/index/compact.json` carry `X-DSG-Signature` (base64
+Ed25519 signature of the exact response body) and `X-DSG-Key-Id`. The public keys are at `/v1/keys.json`; ship the
+key with your app (or pin its `key_id`) and refuse a cached or mirrored index that does not verify.
+
+```js
+import { createPublicKey, verify } from 'node:crypto';
+const { keys } = await (await fetch(`${API}/v1/keys.json`)).json();
+const res = await fetch(`${API}/v1/index.json`, { headers: { 'User-Agent': 'MyEmu/1.0' } });
+const body = Buffer.from(await res.arrayBuffer());
+const key = keys.find((k) => k.key_id === res.headers.get('x-dsg-key-id'));
+const ok = verify(null, body, createPublicKey(key.public_key_pem), Buffer.from(res.headers.get('x-dsg-signature'), 'base64'));
+```
+
+```python
+import base64, requests
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+keys = requests.get(f"{API}/v1/keys.json").json()["keys"]
+res = requests.get(f"{API}/v1/index.json", headers={"User-Agent": "MyEmu/1.0"})
+key = next(k for k in keys if k["key_id"] == res.headers["X-DSG-Key-Id"])
+Ed25519PublicKey.from_public_bytes(base64.b64decode(key["public_key"])).verify(
+    base64.b64decode(res.headers["X-DSG-Signature"]), res.content)  # raises if tampered
+```
+
+## Webhooks (for operators)
+
+Admins add webhooks at `/admin/webhooks`: a Discord channel webhook, or any public https URL that receives JSON
+`{ event, mod, release? }` with `X-DSG-Event` and `X-DSG-Signature: sha256=<HMAC-SHA256 of the body with the
+webhook's secret>`. Events: `mod_published`, `release_published`, plus `test`. Failed deliveries are retried
+after 1, 2 and 4 minutes.
 
 ## For frontends with large libraries
 

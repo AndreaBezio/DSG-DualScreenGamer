@@ -130,7 +130,11 @@
       "batch": "Up to 500 lookups in one request",
       "compact": "Every key of every game with mods, to badge a library offline",
       "updates": "Newer compatible releases of installed mods",
-      "feed": "New mods and releases"
+      "feed": "New mods and releases",
+      "installs": "Count an install, anonymously",
+      "reports": "What players report, by device",
+      "device": "Screens and recommended settings",
+      "keys": "Public keys for the signed indexes"
     },
     "userAgent": "Send a User-Agent naming your app. The API is read-only, CORS-enabled and rate limited.",
     "offline": "Prefer an offline cache? Mirror /v1/index.json and revalidate with If-None-Match.",

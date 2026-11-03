@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { createPublicKey, generateKeyPairSync, verify } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,6 +15,7 @@ import { deliverOutbox } from '../../worker/src/outbox.ts';
 import { fakeGitHubFetch, registry, releases, testGitHub } from '../../worker/test/fixtures.ts';
 import { createApp } from '../src/app.ts';
 import { clearPlatformCache } from '../src/queries.ts';
+import { signerFromPem } from '../src/signing.ts';
 
 const url = process.env.TEST_DATABASE_URL ?? 'postgres://dsg:dsg@localhost:5432/dsg_test';
 const INTERNAL = 'internal-secret';
@@ -564,6 +566,28 @@ describe('frontend API', () => {
     expect(body.items.map((i: any) => [i.mod_id, i.installed, i.latest.version])).toEqual([['test-quest-hd', '1.0', '1.1.0']]);
     const post = await call('/v1/updates', null, { method: 'POST', body: JSON.stringify({ installed: [{ mod_id: 'test-quest-hd', version: '1.1.0' }] }) });
     expect(((await post.json()) as any).items).toEqual([]);
+  });
+
+  it('signs the offline indexes with a published Ed25519 key', async () => {
+    const { privateKey } = generateKeyPairSync('ed25519');
+    const signed = createApp(db, { signer: signerFromPem(privateKey.export({ format: 'pem', type: 'pkcs8' }).toString().replace(/\n/g, '\\n')) });
+    const get = (path: string) => signed.request(path, { headers: UA });
+    const keys = ((await (await get('/v1/keys.json')).json()) as any).keys;
+    expect(keys).toEqual([expect.objectContaining({ alg: 'Ed25519', key_id: expect.stringMatching(/^[0-9a-f]{16}$/) })]);
+    const pub = createPublicKey(keys[0].public_key_pem);
+    for (const path of ['/v1/index.json', '/v1/index/compact.json']) {
+      const res = await get(path);
+      const body = await res.text();
+      expect(res.headers.get('x-dsg-key-id')).toBe(keys[0].key_id);
+      expect(verify(null, Buffer.from(body), pub, Buffer.from(res.headers.get('x-dsg-signature')!, 'base64'))).toBe(true);
+      // A modified copy no longer verifies
+      expect(verify(null, Buffer.from(body + ' '), pub, Buffer.from(res.headers.get('x-dsg-signature')!, 'base64'))).toBe(false);
+    }
+    const detached = await (await get('/v1/index.json.sig')).text();
+    expect(verify(null, Buffer.from(await (await get('/v1/index.json')).text()), pub, Buffer.from(detached, 'base64'))).toBe(true);
+    // Unsigned servers say so
+    expect(((await (await call('/v1/keys.json', null)).json()) as any).keys).toEqual([]);
+    expect((await call('/v1/index.json', null)).headers.get('x-dsg-signature')).toBeNull();
   });
 
   it('publishes Atom and JSON feeds', async () => {

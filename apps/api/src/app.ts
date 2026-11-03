@@ -23,6 +23,7 @@ import * as fe from './frontend.ts';
 import { installRoutes } from './installs.ts';
 import { reportRoutes } from './reports.ts';
 import { webhookRoutes } from './webhooks.ts';
+import type { Signer } from './signing.ts';
 import * as q from './queries.ts';
 import { rateLimit } from './rate-limit.ts';
 
@@ -31,6 +32,8 @@ export type AppOptions = {
   rateLimitPerMinute?: number;
   trustProxy?: boolean;
   publicUrl?: string;
+  /** Signs index.json and compact.json (see /v1/keys.json) */
+  signer?: Signer;
   /** Key for the daily install-dedupe hashes (random per process when unset) */
   installSalt?: string;
   /** Website base URL, for links in feeds */
@@ -211,17 +214,35 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   );
 
   // Every key of every game that has mods: a frontend checks its library offline and refreshes with If-None-Match
-  let compactCache: { body: string; etag: string; at: number } | null = null;
+  let compactCache: { body: string; etag: string; at: number; sig?: string } | null = null;
   app.get('/v1/index/compact.json', async (c) => {
     if (!compactCache || Date.now() - compactCache.at > 60_000) {
       const data = await fe.compactIndex(db);
       const body = JSON.stringify(data);
-      compactCache = { body, etag: fe.etag(body), at: Date.now() };
+      compactCache = { body, etag: fe.etag(body), at: Date.now(), sig: opts.signer?.sign(body) };
     }
     c.header('ETag', compactCache.etag);
+    signHeaders(c, compactCache.sig);
     c.header('Cache-Control', 'public, max-age=300');
     if (c.req.header('if-none-match') === compactCache.etag) return c.body(null, 304);
     return c.body(compactCache.body, 200, { 'Content-Type': 'application/json' });
+  });
+
+  // Public keys for X-DSG-Signature; a list so keys can be rotated
+  app.get('/v1/keys.json', (c) =>
+    c.json({
+      keys: opts.signer
+        ? [{ key_id: opts.signer.keyId, alg: 'Ed25519', public_key: opts.signer.publicKey, public_key_pem: opts.signer.publicKeyPem }]
+        : [],
+    }),
+  );
+  /** Detached signature of the current index.json, for clients that store the file without headers. */
+  app.get('/v1/index.json.sig', async (c) => {
+    if (!opts.signer) return c.json({ error: 'signing is not configured on this server' }, 404);
+    const res = await app.request('/v1/index.json', { headers: { 'User-Agent': 'dsg-internal' } });
+    c.header('X-DSG-Key-Id', opts.signer.keyId);
+    c.header('ETag', res.headers.get('etag') ?? '');
+    return c.text(res.headers.get('x-dsg-signature') ?? '');
   });
 
   const siteUrl = opts.siteUrl ?? 'http://localhost:3000';
@@ -382,17 +403,25 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   );
 
   // Whole catalog in one document, for clients that prefer an offline cache. Revalidate with If-None-Match.
-  let indexCache: { body: string; etag: string; at: number } | null = null;
+  let indexCache: { body: string; etag: string; at: number; sig?: string } | null = null;
+  const signHeaders = (c: { header: (k: string, v: string) => void }, sig?: string) => {
+    if (sig && opts.signer) {
+      c.header('X-DSG-Signature', sig);
+      c.header('X-DSG-Key-Id', opts.signer.keyId);
+    }
+  };
   app.get('/v1/index.json', async (c) => {
     if (!indexCache || Date.now() - indexCache.at > 60_000) {
       const { generated_at, ...data } = await q.fullIndex(db);
       const content = JSON.stringify(data);
       const etag = etagFor(content);
       if (indexCache?.etag !== etag) {
-        indexCache = { body: JSON.stringify({ generated_at, ...data }), etag, at: Date.now() };
+        const body = JSON.stringify({ generated_at, ...data });
+        indexCache = { body, etag, at: Date.now(), sig: opts.signer?.sign(body) };
       } else indexCache.at = Date.now();
     }
     c.header('ETag', indexCache.etag);
+    signHeaders(c, indexCache.sig);
     c.header('Cache-Control', 'public, max-age=300');
     if (c.req.header('if-none-match') === indexCache.etag) return c.body(null, 304);
     return c.body(indexCache.body, 200, { 'Content-Type': 'application/json' });

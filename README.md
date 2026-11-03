@@ -17,6 +17,9 @@ instead of copying files around by hand.
   screen screenshots; moderators review it in `/admin` before it is published.
 - **Frontend API**: lookups by hash, file name, IGDB / RetroAchievements / ScreenScraper / LaunchBox id, platform
   names as other catalogs spell them, batch lookups, a compact offline index, update checks and feeds.
+- **Players and operators**: compatibility reports per device, device pages with real screen specs and
+  recommended emulator settings, an anonymous install counter, Discord/JSON webhooks for new mods and releases,
+  and Ed25519-signed offline indexes.
 - **Registry**: mods are listed through YAML manifests reviewed as pull requests. DSG never re-hosts files:
   it resolves downloads from the authors' GitHub releases. See [docs/manifest.md](docs/manifest.md).
 
@@ -68,6 +71,9 @@ Updating: `git pull && docker compose up -d --build`. Data lives in the `pgdata`
   on each site with callback `<PUBLIC_SITE_URL>/auth/callback/github` (or `/discord`). `ADMIN_GITHUB_LOGINS` /
   `ADMIN_DISCORD_IDS` say who becomes admin; admins see the moderation queue at `/admin`.
 - `RA_API_KEY` — optional, links dumps to RetroAchievements game ids.
+- `INSTALL_SALT` — key for the anonymous daily install dedupe (`openssl rand -hex 32`).
+- `INDEX_SIGNING_KEY` — optional Ed25519 key that signs `index.json` / `compact.json`; create it with
+  `pnpm keys:generate`. Admins add Discord webhooks at `/admin/webhooks`.
 - `ADMIN_TOKEN` — protects `POST /admin/sync`. Add it and `DSG_API_URL` as repository secrets
   (`DSG_ADMIN_TOKEN`, `DSG_API_URL`) so merging a manifest triggers a sync right away.
 
