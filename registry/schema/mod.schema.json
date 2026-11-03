@@ -220,7 +220,10 @@
                     "serial",
                     "steam_appid",
                     "gog_id",
-                    "android_pkg"
+                    "android_pkg",
+                    "retroachievements",
+                    "screenscraper",
+                    "launchbox"
                   ]
                 },
                 "value": {

@@ -33,6 +33,8 @@ jobs:
         run: pnpm registry:validate -- --remote
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: JSON Schemas are up to date
+        run: pnpm registry:schema && git diff --exit-code registry/schema
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm --filter @dsg/web build

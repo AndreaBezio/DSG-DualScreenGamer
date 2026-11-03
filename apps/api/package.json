@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@dsg/db": "workspace:*",
+    "@dsg/net": "workspace:*",
     "@dsg/romdb": "workspace:*",
     "@dsg/schema": "workspace:*",
     "@hono/node-server": "2.1.5",

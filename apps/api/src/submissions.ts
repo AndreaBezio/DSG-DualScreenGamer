@@ -18,7 +18,8 @@ import {
   type ModSource,
 } from '@dsg/db';
 import { CommunitySubmission, normalizeIdentifier } from '@dsg/schema';
-import { and, eq, inArray } from 'drizzle-orm';
+import { looksPublic } from '@dsg/net';
+import { and, eq, inArray, like, or } from 'drizzle-orm';
 import type { User } from './auth.ts';
 import { isModerator } from './auth.ts';
 import { mediaUrl } from './uploads.ts';
@@ -41,7 +42,11 @@ export function slugify(text: string): string {
 }
 
 async function uniqueId(db: Db, table: typeof mods | typeof games, base: string): Promise<string> {
-  const taken = new Set((await db.select({ id: table.id }).from(table)).map((r) => r.id));
+  const rows = await db
+    .select({ id: table.id })
+    .from(table)
+    .where(or(eq(table.id, base), like(table.id, `${base.replace(/[%_]/g, '\\$&')}-%`)));
+  const taken = new Set(rows.map((r) => r.id));
   if (!taken.has(base)) return base;
   for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
 }
@@ -80,12 +85,12 @@ export async function validateSubmission(db: Db, payload: unknown, user: User, e
     gamePlatforms = s.game.new.platforms;
     for (const p of gamePlatforms) if (!plats.some((x) => x.id === p)) errors.push(`game.platforms: unknown platform "${p}"`);
     gameIds = s.game.new.identifiers.map((i) => ({ kind: i.kind, value: normalizeIdentifier(i.kind, i.value) }));
-    for (const i of gameIds) {
-      const [owner] = await db
-        .select({ gameId: gameIdentifiers.gameId })
+    if (gameIds.length) {
+      const owners = await db
+        .select()
         .from(gameIdentifiers)
-        .where(and(eq(gameIdentifiers.kind, i.kind), eq(gameIdentifiers.value, i.value)));
-      if (owner) errors.push(`game.identifiers: ${i.kind} ${i.value} already belongs to "${owner.gameId}" — pick that game instead`);
+        .where(or(...gameIds.map((i) => and(eq(gameIdentifiers.kind, i.kind), eq(gameIdentifiers.value, i.value)))));
+      for (const o of owners) errors.push(`game.identifiers: ${o.kind} ${o.value} already belongs to "${o.gameId}" — pick that game instead`);
     }
   }
 
@@ -103,6 +108,10 @@ export async function validateSubmission(db: Db, payload: unknown, user: User, e
     }
   }
   for (const d of s.mod.devices) if (!devs.some((x) => x.id === d)) errors.push(`mod.devices: unknown device "${d}"`);
+  // The worker downloads these to hash them: no private or local hosts
+  if (s.download.kind === 'manual') {
+    for (const [n, f] of s.download.files.entries()) if (!looksPublic(f.url)) errors.push(`download.files.${n}.url: must be a public https link`);
+  }
 
   if (editingModId) {
     const [m] = await db.select().from(mods).where(eq(mods.id, editingModId));

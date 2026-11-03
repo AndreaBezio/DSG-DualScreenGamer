@@ -9,9 +9,8 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cleanupUploads, syncCommunityFiles, syncRetroAchievements } from '../../worker/src/community.ts';
-import { GitHubClient } from '../../worker/src/github.ts';
 import { syncArtwork, syncRegistry, syncReleases } from '../../worker/src/sync.ts';
-import { fakeGitHubFetch, registry } from '../../worker/test/fixtures.ts';
+import { fakeGitHubFetch, registry, testGitHub } from '../../worker/test/fixtures.ts';
 import { createApp } from '../src/app.ts';
 import { clearPlatformCache } from '../src/queries.ts';
 
@@ -210,12 +209,14 @@ describe('submission lifecycle', () => {
 
   it('cross-checks the catalog: unknown emulators, foreign uploads, taken identifiers', async () => {
     const bad = payload();
+    (bad.download as any).files = [{ label: 'x', role: 'main', url: 'https://192.168.1.10/x.zip' }];
     bad.targets = [{ platform: 'nds', emulator: 'azahar' }];
     bad.game.new.identifiers = [{ kind: 'sha1', value: 'a'.repeat(40), platform: 'nds', region: 'USA' }];
     await call(`/v1/me/submissions/${id}`, alice, { method: 'PATCH', body: JSON.stringify({ payload: bad }) });
     const errors = ((await (await call(`/v1/me/submissions/${id}/check`, alice, { method: 'POST' })).json()) as any).errors.join('\n');
     expect(errors).toMatch(/Azahar does not run nds/);
     expect(errors).toMatch(/already belongs to "pocket-test"/);
+    expect(errors).toMatch(/must be a public https link/);
     const mallory = await signIn('github', 'mallory');
     const s = (await (await call('/v1/me/submissions', mallory, { method: 'POST', body: JSON.stringify({ payload: payload() }) })).json()) as any;
     const res = (await (await call(`/v1/me/submissions/${s.id}/check`, mallory, { method: 'POST' })).json()) as any;
@@ -293,14 +294,14 @@ describe('worker steps for community content', () => {
       String(u) === 'https://files.example.org/layout.zip'
         ? new Response(file, { headers: { 'content-type': 'application/zip' } })
         : new Response('no', { status: 404 })) as typeof fetch;
-    const r = await syncCommunityFiles(db, { fetch: fetchFile });
+    const r = await syncCommunityFiles(db, { fetch: fetchFile, guard: async () => true });
     expect(r).toEqual({ updated: 1, errors: [] });
     const mod = (await (await call('/v1/admin/submissions?status=approved', admin)).json()) as any;
     expect(mod.items.length).toBeGreaterThan(0);
     const [asset] = await db.select().from(releaseAssets).where(eq(releaseAssets.url, 'https://files.example.org/layout.zip'));
     expect(asset).toMatchObject({ size: file.byteLength, contentType: 'application/zip' });
     expect(asset!.sha256).toMatch(/^[0-9a-f]{64}$/);
-    expect((await syncCommunityFiles(db, { fetch: fetchFile })).updated).toBe(0);
+    expect((await syncCommunityFiles(db, { fetch: fetchFile, guard: async () => true })).updated).toBe(0);
   });
 
   it('links RetroAchievements ids by MD5 when a key is configured', async () => {
@@ -332,12 +333,27 @@ describe('worker steps for community content', () => {
   });
 });
 
+/** Counts statements sent to Postgres while fn runs (pg_stat_statements-free: wraps the client). */
+async function countQueries(fn: () => Promise<void>): Promise<number> {
+  const client = db.$client as unknown as { unsafe: (...a: unknown[]) => unknown };
+  const original = client.unsafe;
+  let n = 0;
+  client.unsafe = function (this: unknown, ...a: unknown[]) {
+    n++;
+    return original.apply(this, a);
+  };
+  try {
+    await fn();
+  } finally {
+    client.unsafe = original;
+  }
+  return n;
+}
+
 describe('frontend API', () => {
   beforeAll(async () => {
-    // As in runSync: artwork follows a registry sync; releases come from (fake) GitHub
-    await syncRegistry(db, registry);
-    await syncArtwork(db, registry, { fetch: fakeGitHubFetch() });
-    await syncReleases(db, registry, { github: new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test') });
+    // Releases come from (fake) GitHub
+    await syncReleases(db, registry, { github: testGitHub() });
     await db.update(games).set({ igdbId: 1035 }).where(eq(games.id, 'test-quest'));
     clearPlatformCache();
   });
@@ -379,6 +395,18 @@ describe('frontend API', () => {
       ['c.3ds', 'test-quest', ['test-quest-hd']],
     ]);
     expect(Object.keys(body.mods).sort()).toEqual(['test-quest-hd', 'tiny-cap-port']);
+    // 500 items cost the same few queries as 3
+    const before = await countQueries(async () => {
+      await call('/v1/lookup/batch', null, { method: 'POST', body: JSON.stringify({ items: [{ crc32: 'ABCEBBB1' }, { sha1: 'f'.repeat(40) }] }) });
+    });
+    const after = await countQueries(async () => {
+      await call('/v1/lookup/batch', null, {
+        method: 'POST',
+        body: JSON.stringify({ items: Array.from({ length: 500 }, (_, i) => ({ ref: i, crc32: i % 2 ? 'ABCEBBB1' : (i + 1).toString(16).padStart(8, '0') })) }),
+      });
+    });
+    expect(after).toBe(before);
+    expect(after).toBeGreaterThan(0);
     const tooMany = await call('/v1/lookup/batch', null, { method: 'POST', body: JSON.stringify({ items: Array.from({ length: 501 }, () => ({ crc32: '1' })) }) });
     expect(tooMany.status).toBe(400);
   });

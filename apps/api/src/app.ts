@@ -40,8 +40,11 @@ const notFound = { 404: json(ErrorDto, 'Not found') };
 
 const Id = z.object({ id: z.string().openapi({ param: { name: 'id', in: 'path' }, example: 'stardew-valley-dual-screen' }) });
 
+const PLATFORM_HELP =
+  'Our id, an alias, or another catalog\'s id: igdb:24, ra:5, screenscraper:12, launchbox:Nintendo DS, libretro:Nintendo - Game Boy Advance, thegamesdb:5';
+
 const ModFilterQuery = z.object({
-  platform: z.string().optional().openapi({ example: 'nds', description: 'Platform id or alias, e.g. nds, n3ds, igdb:20, ra:18' }),
+  platform: z.string().optional().openapi({ example: 'nds', description: PLATFORM_HELP }),
   emulator: z.string().optional().openapi({ example: 'melonds', description: 'Emulator id from /v1/emulators' }),
   emulator_version: z.string().optional().openapi({ example: '1.0' }),
   device: z.string().optional().openapi({ example: 'ayn-thor' }),
@@ -59,8 +62,6 @@ const KeysShape = {
 };
 const LookupQuery = ModFilterQuery.extend(KeysShape);
 
-const PLATFORM_HELP =
-  'Our id, an alias, or another catalog\'s id: igdb:24, ra:5, screenscraper:12, launchbox:Nintendo DS, libretro:Nintendo - Game Boy Advance, thegamesdb:5';
 
 function etagFor(body: string): string {
   return `"${createHash('sha1').update(body).digest('base64url')}"`;

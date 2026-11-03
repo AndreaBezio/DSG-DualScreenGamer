@@ -1149,17 +1149,6 @@ img {
   margin-bottom: 8px;
   border-radius: 4px;
 }
-.dsp-missing {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 12px;
-  text-align: center;
-  font-size: 13px;
-  color: #8b929c;
-  background: repeating-linear-gradient(45deg, #111317 0 10px, #15181d 10px 20px);
-}
 .dsp-caption {
   display: flex;
   align-items: center;

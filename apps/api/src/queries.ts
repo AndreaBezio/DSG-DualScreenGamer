@@ -15,7 +15,7 @@ import {
   type Db,
 } from '@dsg/db';
 import { normalizeIdentifier, type IdentifierKind } from '@dsg/schema';
-import { and, arrayContains, asc, desc, eq, ilike, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, arrayContains, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { GameDto, MediaDto, ModDto, ReleaseDto } from './dto.ts';
 import { deviceMatches, targetMatches, type MatchQuery, type TargetRow } from './match.ts';
 
@@ -25,6 +25,18 @@ type GameRow = typeof games.$inferSelect;
 export type ModFilter = MatchQuery & { gameId?: string; type?: string; device?: string; q?: string };
 type LookupFilter = Omit<ModFilter, 'gameId' | 'identifiers'>;
 
+/** Groups rows by key once, instead of filtering the whole list for every parent. */
+function groupBy<T, K>(rows: T[], key: (r: T) => K): Map<K, T[]> {
+  const out = new Map<K, T[]>();
+  for (const r of rows) {
+    const k = key(r);
+    const list = out.get(k);
+    if (list) list.push(r);
+    else out.set(k, [r]);
+  }
+  return out;
+}
+
 async function releasesFor(db: Db, releaseRows: (typeof modReleases.$inferSelect)[]): Promise<Map<number, ReleaseDto>> {
   const out = new Map<number, ReleaseDto>();
   if (!releaseRows.length) return out;
@@ -33,6 +45,7 @@ async function releasesFor(db: Db, releaseRows: (typeof modReleases.$inferSelect
     .from(releaseAssets)
     .where(inArray(releaseAssets.releaseId, releaseRows.map((r) => r.id)))
     .orderBy(asc(releaseAssets.id));
+  const byRelease = groupBy(assets, (a) => a.releaseId);
   for (const r of releaseRows) {
     out.set(r.id, {
       tag: r.tag,
@@ -42,9 +55,7 @@ async function releasesFor(db: Db, releaseRows: (typeof modReleases.$inferSelect
       published_at: r.publishedAt.toISOString(),
       html_url: r.htmlUrl,
       changelog: r.changelog,
-      assets: assets
-        .filter((a) => a.releaseId === r.id)
-        .map((a) => ({ role: a.role, name: a.name, url: a.url, size: a.size, sha256: a.sha256, content_type: a.contentType })),
+      assets: (byRelease.get(r.id) ?? []).map((a) => ({ role: a.role, name: a.name, url: a.url, size: a.size, sha256: a.sha256, content_type: a.contentType })),
     });
   }
   return out;
@@ -88,25 +99,26 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
       : Promise.resolve([]),
   ]);
   const releases = await releasesFor(db, latest);
+  const targetsBy = groupBy(targets, (x) => x.modId);
+  const latestBy = new Map(latest.map((r) => [r.modId, r]));
+  const mediaBy = groupBy(media, (x) => x.modId);
+  const coverBy = new Map(covers.map((c) => [c.id, c.coverUrl]));
+  const artBy = groupBy(gameArt, (a) => a.gameId);
   return rows.map((m) => {
-    const t = targets.filter((x) => x.modId === m.id);
-    const rel = latest.find((r) => r.modId === m.id);
-    const { gallery, previews } = shapeMedia(media.filter((x) => x.modId === m.id));
-    // Community uploads: the submitter's chosen cover sits at the lowest position
-    const uploaded = media
-      .filter((x) => x.modId === m.id && x.source === 'upload' && x.kind !== 'bottom')
-      .sort((a, b) => a.position - b.position)[0];
+    const t = targetsBy.get(m.id) ?? [];
+    const rel = latestBy.get(m.id);
+    const own = mediaBy.get(m.id) ?? [];
+    const { gallery, previews } = shapeMedia(own);
+    // Community uploads: the submitter's chosen cover sits at the lowest position (rows come sorted by position)
+    const uploaded = own.find((x) => x.source === 'upload' && x.kind !== 'bottom');
     const cover =
       uploaded?.url ??
       gallery.find((g) => g.source === 'manifest')?.url ??
       previews[0]?.top.url ??
       gallery[0]?.url ??
       // A mod card is landscape: the game's screenshot fits better than its box art
-      (m.gameId
-        ? pickGameArt(covers.find((c) => c.id === m.gameId)?.coverUrl ?? null, gameArt.filter((a) => a.gameId === m.gameId))
-        : null
-      )?.screenshot ??
-      covers.find((c) => c.id === m.gameId)?.coverUrl ??
+      (m.gameId ? pickGameArt(coverBy.get(m.gameId) ?? null, artBy.get(m.gameId) ?? []) : null)?.screenshot ??
+      (m.gameId ? coverBy.get(m.gameId) : null) ??
       null;
     return {
       id: m.id,
@@ -192,6 +204,13 @@ export async function getMod(db: Db, id: string, opts: { includeUnpublished?: bo
   return m ? strip(m) : null;
 }
 
+/** Several published mods by id, in one hydration. */
+export async function getMods(db: Db, ids: string[]): Promise<Map<string, Hydrated>> {
+  if (!ids.length) return new Map();
+  const rows = await db.select().from(mods).where(and(inArray(mods.id, ids), eq(mods.published, true)));
+  return new Map((await hydrateMods(db, rows)).map((m) => [m.id, m]));
+}
+
 export async function getReleases(db: Db, modId: string): Promise<ReleaseDto[]> {
   const rows = await db.select().from(modReleases).where(eq(modReleases.modId, modId)).orderBy(desc(modReleases.publishedAt));
   const map = await releasesFor(db, rows);
@@ -210,8 +229,11 @@ async function hydrateGames(db: Db, rows: GameRow[]): Promise<GameDto[]> {
       .groupBy(mods.gameId),
     db.select().from(gameMedia).where(inArray(gameMedia.gameId, ids)).orderBy(asc(gameMedia.position)),
   ]);
+  const identsBy = groupBy(idents, (i) => i.gameId);
+  const countBy = new Map(counts.map((c) => [c.gameId, c.n]));
+  const mediaBy = groupBy(media, (m) => m.gameId);
   return rows.map((g) => {
-    const gm = media.filter((m) => m.gameId === g.id);
+    const gm = mediaBy.get(g.id) ?? [];
     const art = pickGameArt(g.coverUrl, gm);
     return {
     id: g.id,
@@ -229,9 +251,7 @@ async function hydrateGames(db: Db, rows: GameRow[]): Promise<GameDto[]> {
       source: m.source as GameDto['media'][number]['source'],
     })),
     release_year: g.releaseYear,
-    identifiers: idents
-      .filter((i) => i.gameId === g.id)
-      .map((i) => ({
+    identifiers: (identsBy.get(g.id) ?? []).map((i) => ({
         kind: i.kind as IdentifierKind,
         value: i.value,
         platform: i.platform,
@@ -239,7 +259,7 @@ async function hydrateGames(db: Db, rows: GameRow[]): Promise<GameDto[]> {
         label: i.label,
         source: i.source as 'manifest' | 'dat',
       })),
-    mod_count: counts.find((c) => c.gameId === g.id)?.n ?? 0,
+    mod_count: countBy.get(g.id) ?? 0,
     };
   });
 }
@@ -290,46 +310,64 @@ export function datNameFromFilename(name: string): string {
   return base.replace(/\.(zip|7z|[a-z0-9]{2,4})$/i, '');
 }
 
-/** Finds the game for one set of keys, honouring the platform when the identifier carries one. */
-export async function findGame(db: Db, keys: LookupKeys, platform?: string): Promise<GameHit | null> {
-  for (const { kind, value } of keys.identifiers) {
-    const normalized = normalizeIdentifier(kind, value);
-    const rows = await db
-      .select()
-      .from(gameIdentifiers)
-      .where(and(eq(gameIdentifiers.kind, kind), eq(gameIdentifiers.value, normalized)));
-    // A CRC32 or serial tagged with another platform is a different game
-    const hit = rows.find((r) => !platform || !r.platform || r.platform === platform);
-    if (!hit) continue;
-    const matched = { kind, value: normalized };
-    // An identifier added from the DAT (e.g. crc32) stands for the manifest identifier of the same dump
-    const same: { kind: string; value: string }[] = [matched];
-    if (hit.siblingOf) {
-      const [k, ...v] = hit.siblingOf.split(':');
-      same.push({ kind: k!, value: v.join(':') });
+const sameDump = (siblingOf: string | null) => {
+  if (!siblingOf) return [];
+  const [k, ...v] = siblingOf.split(':');
+  return [{ kind: k!, value: v.join(':') }];
+};
+
+/**
+ * Finds the game for many sets of keys with a constant number of queries (one per identifier kind
+ * present, one for file names, one for IGDB ids), honouring the same precedence as a single lookup.
+ */
+export async function findGames(db: Db, list: LookupKeys[], platform?: string): Promise<(GameHit | null)[]> {
+  const normalized = list.map((k) => k.identifiers.map(({ kind, value }) => ({ kind, value: normalizeIdentifier(kind, value) })));
+  const byKind = new Map<string, Set<string>>();
+  for (const ids of normalized) for (const i of ids) (byKind.get(i.kind) ?? byKind.set(i.kind, new Set()).get(i.kind)!).add(i.value);
+  const names = [...new Set(list.flatMap((k) => (k.filename ? [datNameFromFilename(k.filename)] : [])))];
+  const igdbIds = [...new Set(list.flatMap((k) => (k.igdb ? [k.igdb] : [])))];
+
+  const [idRows, nameRows, igdbRows] = await Promise.all([
+    byKind.size
+      ? db
+          .select()
+          .from(gameIdentifiers)
+          .where(or(...[...byKind].map(([kind, values]) => and(eq(gameIdentifiers.kind, kind), inArray(gameIdentifiers.value, [...values])))))
+      : Promise.resolve([]),
+    names.length
+      ? db.select().from(gameIdentifiers).where(and(inArray(gameIdentifiers.label, names), eq(gameIdentifiers.source, 'dat')))
+      : Promise.resolve([]),
+    igdbIds.length
+      ? db.select({ id: games.id, igdb: games.igdbId, platforms: games.platforms }).from(games).where(inArray(games.igdbId, igdbIds))
+      : Promise.resolve([]),
+  ]);
+  const idIndex = groupBy(idRows, (r) => `${r.kind}:${r.value}`);
+  const nameIndex = groupBy(nameRows, (r) => r.label!);
+  const okPlatform = (p: string | null) => !platform || !p || p === platform;
+
+  return list.map((keys, n): GameHit | null => {
+    for (const matched of normalized[n]!) {
+      // A CRC32 or serial tagged with another platform is a different game
+      const hit = idIndex.get(`${matched.kind}:${matched.value}`)?.find((r) => okPlatform(r.platform));
+      // An identifier added from the DAT (e.g. crc32) stands for the manifest identifier of the same dump
+      if (hit) return { gameId: hit.gameId, matched, same: [matched, ...sameDump(hit.siblingOf)] };
     }
-    return { gameId: hit.gameId, matched, same };
-  }
-  if (keys.filename) {
-    const label = datNameFromFilename(keys.filename);
-    const [hit] = await db
-      .select()
-      .from(gameIdentifiers)
-      .where(and(eq(gameIdentifiers.label, label), eq(gameIdentifiers.source, 'dat')))
-      .limit(1);
-    if (hit && (!platform || !hit.platform || hit.platform === platform)) {
-      const same = hit.siblingOf ? [{ kind: hit.siblingOf.split(':')[0]!, value: hit.siblingOf.split(':').slice(1).join(':') }] : [];
-      return { gameId: hit.gameId, matched: { kind: 'filename', value: label }, same };
+    if (keys.filename) {
+      const label = datNameFromFilename(keys.filename);
+      const hit = nameIndex.get(label)?.find((r) => okPlatform(r.platform));
+      if (hit) return { gameId: hit.gameId, matched: { kind: 'filename', value: label }, same: sameDump(hit.siblingOf) };
     }
-  }
-  if (keys.igdb) {
-    const [g] = await db.select({ id: games.id, platforms: games.platforms }).from(games).where(eq(games.igdbId, keys.igdb));
-    if (g && (!platform || g.platforms.includes(platform))) {
+    if (keys.igdb) {
+      const g = igdbRows.find((r) => r.igdb === keys.igdb && (!platform || r.platforms.includes(platform)));
       // An IGDB id names the game, not a dump: mods restricted to specific dumps still match
-      return { gameId: g.id, matched: { kind: 'igdb', value: String(keys.igdb) }, same: [] };
+      if (g) return { gameId: g.id, matched: { kind: 'igdb', value: String(keys.igdb) }, same: [] };
     }
-  }
-  return null;
+    return null;
+  });
+}
+
+export async function findGame(db: Db, keys: LookupKeys, platform?: string): Promise<GameHit | null> {
+  return (await findGames(db, [keys], platform))[0]!;
 }
 
 /** The emulator entry point: "I'm about to boot this dump — what mods exist for it?" */

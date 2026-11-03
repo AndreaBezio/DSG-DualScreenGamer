@@ -26,6 +26,9 @@ importers:
       '@dsg/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@dsg/net':
+        specifier: workspace:*
+        version: link:../../packages/net
       '@dsg/romdb':
         specifier: workspace:*
         version: link:../../packages/romdb
@@ -84,6 +87,9 @@ importers:
       '@dsg/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@dsg/net':
+        specifier: workspace:*
+        version: link:../../packages/net
       '@dsg/romdb':
         specifier: workspace:*
         version: link:../../packages/romdb
@@ -115,6 +121,8 @@ importers:
       drizzle-kit:
         specifier: 0.31.11
         version: 0.31.11
+
+  packages/net: {}
 
   packages/romdb:
     dependencies:

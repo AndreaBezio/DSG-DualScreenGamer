@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { guardedFetch, isPublicUrl, type UrlGuard } from '@dsg/net';
 import { matchesGlob } from './glob.ts';
 
 export type GhAsset = {
@@ -47,6 +48,8 @@ export class GitHubClient {
     private token: string | undefined = process.env.GITHUB_TOKEN || undefined,
     private fetchImpl: FetchLike = fetch,
     private apiBase = 'https://api.github.com',
+    /** Images and files can live on any host: only public ones are fetched */
+    private guard: UrlGuard = (u) => isPublicUrl(u),
   ) {}
 
   private headers(etag?: string): Record<string, string> {
@@ -96,10 +99,11 @@ export class GitHubClient {
 
   /** Reads just the start of an image: enough for its dimensions. */
   async imageHead(url: string, maxBytes = 65536): Promise<Uint8Array | null> {
-    const res = await this.fetchImpl(url, {
-      headers: { 'User-Agent': 'dsg-worker', Range: `bytes=0-${maxBytes - 1}` },
-      redirect: 'follow',
-    });
+    const res = await guardedFetch(
+      url,
+      { headers: { 'User-Agent': 'dsg-worker', Range: `bytes=0-${maxBytes - 1}` } },
+      { fetch: this.fetchImpl, guard: this.guard },
+    );
     if (!res.ok || !res.body) return null;
     const chunks: Uint8Array[] = [];
     let total = 0;
@@ -116,7 +120,7 @@ export class GitHubClient {
 
   /** Fallback when GitHub didn't provide a digest: stream the file and hash it. */
   async sha256OfUrl(url: string, maxBytes: number): Promise<string | null> {
-    const res = await this.fetchImpl(url, { headers: { 'User-Agent': 'dsg-worker' }, redirect: 'follow' });
+    const res = await guardedFetch(url, { headers: { 'User-Agent': 'dsg-worker' } }, { fetch: this.fetchImpl, guard: this.guard });
     if (!res.ok || !res.body) return null;
     const hash = createHash('sha256');
     let total = 0;

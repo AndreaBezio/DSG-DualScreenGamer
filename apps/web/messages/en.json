@@ -58,8 +58,7 @@
     "noMods": "No mods for this game yet.",
     "addOne": "Made one? Add it.",
     "metadata": "Title metadata from IGDB",
-    "screenshots": "Screenshots",
-    "fromDat": "Also recognised by"
+    "screenshots": "Screenshots"
   },
   "mod": {
     "crumb": "Mods",
@@ -98,10 +97,8 @@
   },
   "preview": {
     "title": "Top and bottom screen",
-    "single": "Screenshot from the mod's page",
     "top": "Top screen",
     "bottom": "Bottom screen",
-    "noBottom": "Bottom screen preview not provided",
     "prev": "Previous",
     "next": "Next"
   },

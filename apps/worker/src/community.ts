@@ -4,6 +4,7 @@ import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gameIdentifiers, modMedia, modReleases, mods, releaseAssets, submissions, uploads, type Db } from '@dsg/db';
 import { and, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import { guardedFetch, type UrlGuard } from '@dsg/net';
 import type { FetchLike } from './github.ts';
 import type { Registry } from './registry.ts';
 import { getState, setState } from './sync.ts';
@@ -16,7 +17,7 @@ const RETRY_MS = 24 * 3600 * 1000;
  */
 export async function syncCommunityFiles(
   db: Db,
-  opts: { fetch?: FetchLike; maxBytes?: number } = {},
+  opts: { fetch?: FetchLike; maxBytes?: number; guard?: UrlGuard } = {},
 ): Promise<{ updated: number; errors: string[] }> {
   const fetchImpl = opts.fetch ?? fetch;
   const maxBytes = opts.maxBytes ?? 512 * 1048576;
@@ -34,7 +35,8 @@ export async function syncCommunityFiles(
     const last = await getState<number>(db, key);
     if (last && Date.now() - last < RETRY_MS) continue;
     try {
-      const res = await fetchImpl(a.url, { headers: { 'User-Agent': 'dsg-worker' }, redirect: 'follow' });
+      // Links come from users: only public hosts, checked on every redirect
+      const res = await guardedFetch(a.url, { headers: { 'User-Agent': 'dsg-worker' } }, { fetch: fetchImpl, guard: opts.guard });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const hash = createHash('sha256');
       let size = 0;

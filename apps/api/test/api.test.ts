@@ -4,9 +4,8 @@ import { createDb, type Db } from '@dsg/db';
 import { sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { GitHubClient } from '../../worker/src/github.ts';
 import { getState, syncArtwork, syncMedia, syncRegistry, syncReleases } from '../../worker/src/sync.ts';
-import { fakeGitHubFetch, registry } from '../../worker/test/fixtures.ts';
+import { fakeGitHubFetch, registry, testGitHub } from '../../worker/test/fixtures.ts';
 import { createApp } from '../src/app.ts';
 
 const url = process.env.TEST_DATABASE_URL ?? 'postgres://dsg:dsg@localhost:5432/dsg_test';
@@ -23,7 +22,7 @@ beforeAll(async () => {
     sql`truncate platforms, emulators, devices, games, game_identifiers, game_media, mods, mod_targets, mod_media, mod_releases, release_assets, sync_state, sync_runs restart identity cascade`,
   );
   await syncRegistry(db, registry);
-  const github = new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test');
+  const github = testGitHub();
   const res = await syncReleases(db, registry, { github });
   expect(res.errors).toEqual([]);
   expect((await syncMedia(db, registry, { github })).errors).toEqual([]);
@@ -39,7 +38,7 @@ describe('sync', () => {
   it('stores etags and skips unchanged repos', async () => {
     const [row] = await db.execute<{ value: { v: string } }>(sql`select value from sync_state where key like 'gh_etag:test-quest-hd:%'`);
     expect(row!.value.v).toBe('"etag-tester/test-quest-hd"');
-    const github = new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test');
+    const github = testGitHub();
     // Only tiny-cap-port is fetched again: with no usable release yet, its ETag is not trusted
     expect((await syncReleases(db, registry, { github })).updated).toBe(1);
   });
@@ -49,7 +48,7 @@ describe('sync', () => {
     expect((await (await get('/v1/mods')).json() as any).items).toHaveLength(1);
     await syncRegistry(db, registry);
     // Releases were cascaded away with the mod; the cached ETag must not hide them now
-    const github = new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test');
+    const github = testGitHub();
     // pocket-test-layout comes back, plus tiny-cap-port which has no release to hold an ETag for
     expect((await syncReleases(db, registry, { github })).updated).toBe(2);
     const items = (await (await get('/v1/mods')).json() as any).items;
@@ -75,7 +74,7 @@ describe('media', () => {
   });
 
   it('skips unchanged repos and keeps manifest images first', async () => {
-    const github = new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test');
+    const github = testGitHub();
     await syncMedia(db, registry, { github }); // catches up the mod re-added by the sync tests
     expect((await syncMedia(db, registry, { github })).updated).toBe(0);
     const withShot = {
@@ -90,11 +89,6 @@ describe('media', () => {
 });
 
 describe('game artwork', () => {
-  // Like runSync: artwork always follows a registry sync (which drops DAT identifiers)
-  beforeAll(async () => {
-    await syncArtwork(db, registry, { fetch: fakeGitHubFetch() });
-  });
-
   it('links libretro box art and snaps found through the DAT', async () => {
     const game = (await (await get('/v1/games/tiny-cap')).json()) as any;
     expect(game.cover_url).toMatch(/Named_Boxarts\/Legend%20of%20Zelda%2C%20The%20-%20The%20Minish%20Cap%20\(USA\)\.png$/);
@@ -114,10 +108,28 @@ describe('game artwork', () => {
     expect(body.mods.map((m: any) => m.id)).toEqual(['tiny-cap-port']);
   });
 
-  it('survives a registry resync and reuses the cached match', async () => {
+  it('keeps DAT identifiers across registry syncs and reuses the cached match', async () => {
     await syncRegistry(db, registry);
-    expect((await syncArtwork(db, registry, { fetch: fakeGitHubFetch() })).updated).toBe(0);
+    // No artwork run in between: the CRC found through the DAT must still work
     expect((await get('/v1/lookup?crc32=abcebbb1')).status).toBe(200);
+    expect((await syncArtwork(db, registry, { fetch: fakeGitHubFetch() })).updated).toBe(0);
+  });
+
+  it('lets a manifest identifier take over the same value found through the DAT', async () => {
+    const withCrc = {
+      ...registry,
+      games: registry.games.map((g) =>
+        g.id === 'tiny-cap' ? { ...g, identifiers: [...g.identifiers, { kind: 'crc32' as const, value: 'ABCEBBB1', platform: 'gba', region: 'USA' }] } : g,
+      ),
+    };
+    await syncRegistry(db, withCrc);
+    const ids = ((await (await get('/v1/games/tiny-cap')).json()) as any).identifiers.filter((i: any) => i.kind === 'crc32');
+    expect(ids).toEqual([expect.objectContaining({ value: 'abcebbb1', source: 'manifest' })]);
+    // Back to the original manifest: the DAT value comes back on the next artwork run
+    await syncRegistry(db, registry);
+    await syncArtwork(db, registry, { fetch: fakeGitHubFetch() });
+    const back = ((await (await get('/v1/games/tiny-cap')).json()) as any).identifiers.filter((i: any) => i.kind === 'crc32');
+    expect(back).toEqual([expect.objectContaining({ value: 'abcebbb1', source: 'dat' })]);
   });
 });
 

@@ -41,26 +41,20 @@ export async function resolveFilter(db: Db, f: ClientFilter): Promise<{ filter: 
 export const BATCH_MAX = 500;
 
 export async function batchLookup(db: Db, items: (Record<string, unknown> & { ref?: unknown })[], f: q.ModFilter) {
-  const results: { ref: unknown; game_id: string | null; matched: { kind: string; value: string } | null; mod_ids: string[] }[] = [];
-  const hits = new Map<number, Awaited<ReturnType<typeof q.findGame>>>();
-  // One query per item is fine for 500 items; most libraries are matched by the compact index anyway
-  for (const [i, item] of items.entries()) hits.set(i, hasKeys(keysFrom(item)) ? await q.findGame(db, keysFrom(item), f.platform) : null);
-  const gameIds = [...new Set([...hits.values()].filter(Boolean).map((h) => h!.gameId))];
-  const all = await q.modsForGames(db, gameIds);
+  const keys = items.map((item) => keysFrom(item));
+  const hits = await q.findGames(db, keys, f.platform);
+  const gameIds = [...new Set(hits.flatMap((h) => (h ? [h.gameId] : [])))];
+  const byGame = new Map<string, Awaited<ReturnType<typeof q.modsForGames>>>();
+  for (const m of await q.modsForGames(db, gameIds)) (byGame.get(m.game_id!) ?? byGame.set(m.game_id!, []).get(m.game_id!)!).push(m);
+
   const mods: Record<string, ModDto> = {};
-  for (const [i, item] of items.entries()) {
-    const hit = hits.get(i);
-    if (!hit) {
-      results.push({ ref: item.ref ?? i, game_id: null, matched: null, mod_ids: [] });
-      continue;
-    }
-    const matching = q.filterMods(
-      all.filter((m) => m.game_id === hit.gameId),
-      { ...f, identifiers: hit.same.length ? hit.same : undefined },
-    );
+  const results = items.map((item, i) => {
+    const hit = hits[i];
+    if (!hit) return { ref: item.ref ?? i, game_id: null, matched: null, mod_ids: [] as string[] };
+    const matching = q.filterMods(byGame.get(hit.gameId) ?? [], { ...f, identifiers: hit.same.length ? hit.same : undefined });
     for (const m of matching) mods[m.id] = m;
-    results.push({ ref: item.ref ?? i, game_id: hit.gameId, matched: hit.matched, mod_ids: matching.map((m) => m.id) });
-  }
+    return { ref: item.ref ?? i, game_id: hit.gameId, matched: hit.matched, mod_ids: matching.map((m) => m.id) };
+  });
   return { results, mods };
 }
 
@@ -87,25 +81,19 @@ export async function compactIndex(db: Db) {
 }
 
 export async function updatesFor(db: Db, installed: { mod_id: string; version: string }[], f: q.ModFilter) {
+  const list = installed.slice(0, BATCH_MAX);
+  const found = await q.getMods(db, [...new Set(list.map((i) => i.mod_id))]);
   const out: { mod_id: string; installed: string; latest: ModDto['latest_release']; install: ModDto['install'] }[] = [];
-  for (const i of installed.slice(0, BATCH_MAX)) {
-    const mod = await q.getMod(db, i.mod_id);
+  for (const i of list) {
+    const mod = found.get(i.mod_id);
     const latest = mod?.latest_release;
     if (!mod || !latest || compareVersions(latest.version, i.version) <= 0) continue;
     // Still compatible with what the client runs?
-    if ((f.platform || f.emulator || f.device) && !q.filterMods([{ ...mod, _targets: mod.targets.map(toTargetRow) }], f).length) continue;
+    if ((f.platform || f.emulator || f.device) && !q.filterMods([mod], f).length) continue;
     out.push({ mod_id: mod.id, installed: i.version, latest, install: mod.install });
   }
   return out;
 }
-
-const toTargetRow = (t: ModDto['targets'][number]) => ({
-  platform: t.platform,
-  emulator: t.emulator,
-  minVersion: t.min_version,
-  maxVersion: t.max_version,
-  identifiers: t.identifiers,
-});
 
 /** `a@1.0,b@2.1` */
 export function parseInstalled(s: string): { mod_id: string; version: string }[] {

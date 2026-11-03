@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import type { GhRelease } from '../src/github.ts';
+import { GitHubClient, type GhRelease } from '../src/github.ts';
 import type { Registry } from '../src/registry.ts';
 
 // Test-only data: invented games and repos, never published.
@@ -228,4 +228,9 @@ export function fakeGitHubFetch(): typeof fetch {
     if (sent === etag) return new Response(null, { status: 304 });
     return Response.json(data, { headers: { etag } });
   }) as typeof fetch;
+}
+
+/** GitHub client wired to the fake API; test hosts don't resolve, so the URL guard lets everything through. */
+export function testGitHub(): GitHubClient {
+  return new GitHubClient(undefined, fakeGitHubFetch(), 'https://gh.test', async () => true);
 }

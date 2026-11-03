@@ -103,7 +103,6 @@ export const api = {
   games: async (params: Record<string, string | undefined>) =>
     (await get<{ items: Game[]; next_offset: number | null }>(`/v1/games?${query({ limit: '100', ...params })}`))?.items ?? [],
   releases: async (id: string) => (await get<{ items: Release[] }>(`/v1/mods/${encodeURIComponent(id)}/releases`))?.items ?? [],
-  status: () => get<{ last_sync: { finished_at: string | null; status: string } | null }>('/v1/status'),
 };
 
 function query(params: Record<string, string | undefined>): string {

@@ -1,8 +1,8 @@
 // Writes games and mods into the catalog. Shared by the registry sync (worker) and by
 // approving community submissions (API), so both produce exactly the same rows.
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, or } from 'drizzle-orm';
 import type { DbOrTx } from './index.ts';
-import { gameIdentifiers, games, modMedia, mods, modTargets, type Author, type ModSource } from './schema.ts';
+import { gameIdentifiers, games, modMedia, mods, modTargets, syncState, type Author, type ModSource } from './schema.ts';
 
 export type Origin = { origin: 'registry' | 'community'; ownerUserId?: string | null };
 
@@ -23,8 +23,28 @@ export async function writeGame(tx: DbOrTx, g: GameInput, o: Origin): Promise<vo
     .insert(games)
     .values({ ...row, igdbId: g.igdbId ?? null })
     .onConflictDoUpdate({ target: games.id, set });
-  await tx.delete(gameIdentifiers).where(and(eq(gameIdentifiers.gameId, g.id), eq(gameIdentifiers.source, 'manifest')));
+  const before = await tx
+    .delete(gameIdentifiers)
+    .where(and(eq(gameIdentifiers.gameId, g.id), eq(gameIdentifiers.source, 'manifest')))
+    .returning({ kind: gameIdentifiers.kind, value: gameIdentifiers.value });
+  // DAT rows are derived from the manifest ones: when those change, let syncArtwork rebuild them
+  const key = (i: { kind: string; value: string }) => `${i.kind}:${i.value}`;
+  const was = new Set(before.map(key));
+  const now = new Set(g.identifiers.map(key));
+  const changed = was.size !== now.size || [...now].some((k) => !was.has(k));
+  const stale = new Set(changed ? [g.id] : []);
   if (g.identifiers.length) {
+    // A manifest identifier replaces the same value found earlier through a DAT (on any game)
+    const replaced = await tx
+      .delete(gameIdentifiers)
+      .where(
+        and(
+          eq(gameIdentifiers.source, 'dat'),
+          or(...g.identifiers.map((i) => and(eq(gameIdentifiers.kind, i.kind), eq(gameIdentifiers.value, i.value)))),
+        ),
+      )
+      .returning({ gameId: gameIdentifiers.gameId });
+    for (const r of replaced) stale.add(r.gameId);
     await tx.insert(gameIdentifiers).values(
       g.identifiers.map((i) => ({
         gameId: g.id,
@@ -36,6 +56,7 @@ export async function writeGame(tx: DbOrTx, g: GameInput, o: Origin): Promise<vo
       })),
     );
   }
+  if (stale.size) await tx.delete(syncState).where(inArray(syncState.key, [...stale].map((id) => `artwork_applied:${id}`)));
 }
 
 export type ModInput = {

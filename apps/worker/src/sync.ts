@@ -8,7 +8,6 @@ import {
   modMedia,
   modReleases,
   mods,
-  modTargets,
   platforms,
   releaseAssets,
   syncRuns,
@@ -20,6 +19,7 @@ import {
   writeMod,
   type Db,
 } from '@dsg/db';
+import type { UrlGuard } from '@dsg/net';
 import { normalizeIdentifier, type GameManifest, type IdentifierKind } from '@dsg/schema';
 import { and, desc, eq, inArray, isNotNull, isNull, like, lt, notInArray, or } from 'drizzle-orm';
 import { GitHubClient, resolveReleases, type GhAsset } from './github.ts';
@@ -38,6 +38,8 @@ export type SyncOptions = {
   log?: (msg: string) => void;
   /** Used for libretro DATs and thumbnails (tests pass a fake). */
   fetch?: FetchLike;
+  /** Which user-chosen URLs may be fetched (default: public https hosts only) */
+  guard?: UrlGuard;
   /** Community file links are hashed up to this size (default 512 MB) */
   communityHashMaxBytes?: number;
   raApiKey?: string;
@@ -76,8 +78,6 @@ export function dbTokenStore(db: Db): TokenStore {
 export async function syncRegistry(db: Db, reg: Registry): Promise<{ errors: string[] }> {
   const errors: string[] = [];
   await db.transaction(async (tx) => {
-    // DAT-derived identifiers are re-added by syncArtwork; dropping them first avoids clashes with manifest edits
-    await tx.delete(gameIdentifiers).where(eq(gameIdentifiers.source, 'dat'));
     for (const p of reg.catalog.platforms) {
       const row = {
         id: p.id,
@@ -180,7 +180,7 @@ export async function syncRegistry(db: Db, reg: Registry): Promise<{ errors: str
     await tx.delete(mods).where(and(registryOnly(mods.origin), notInArray(mods.id, reg.mods.map((m) => m.id))));
     // A registry game that community mods still point at stays
     const usedByCommunity = tx.select({ id: mods.gameId }).from(mods).where(and(eq(mods.origin, 'community'), isNotNull(mods.gameId)));
-    await tx
+    const goneGames = await tx
       .delete(games)
       .where(
         and(
@@ -188,7 +188,11 @@ export async function syncRegistry(db: Db, reg: Registry): Promise<{ errors: str
           notInArray(games.id, reg.games.map((g) => g.id)),
           notInArray(games.id, usedByCommunity),
         ),
-      );
+      )
+      .returning({ id: games.id });
+    for (const { id } of goneGames) {
+      await tx.delete(syncState).where(or(eq(syncState.key, `artwork:${id}`), eq(syncState.key, `artwork_applied:${id}`)));
+    }
     await tx.delete(emulators).where(notInArray(emulators.id, reg.catalog.emulators.map((e) => e.id)));
     await tx.delete(devices).where(notInArray(devices.id, reg.catalog.devices.map((d) => d.id)));
     await tx.delete(platforms).where(notInArray(platforms.id, reg.catalog.platforms.map((p) => p.id)));
@@ -423,6 +427,10 @@ export async function syncArtwork(db: Db, reg: Registry, opts: SyncOptions = {})
         updated++;
       }
 
+      // Rows only change when the match does: no churn, and no moment where a CRC lookup misses
+      const appliedKey = `artwork_applied:${g.id}`;
+      const applied = createHash('sha1').update(JSON.stringify(match)).digest('hex');
+      if ((await getState<string>(db, appliedKey)) === applied) continue;
       await db.transaction(async (tx) => {
         await tx.delete(gameIdentifiers).where(and(eq(gameIdentifiers.gameId, g.id), eq(gameIdentifiers.source, 'dat')));
         await tx.delete(gameMedia).where(and(eq(gameMedia.gameId, g.id), eq(gameMedia.source, 'libretro')));
@@ -440,6 +448,7 @@ export async function syncArtwork(db: Db, reg: Registry, opts: SyncOptions = {})
             .values(match.media.map((m, i) => ({ gameId: g.id, kind: m.kind, url: m.url, source: 'libretro', position: 100 + i })));
         }
       });
+      await setState(db, appliedKey, applied);
     } catch (e) {
       errors.push(`artwork ${g.id}: ${(e as Error).message}`);
     }
@@ -519,7 +528,7 @@ export async function runSync(db: Db, reg: Registry, opts: SyncOptions = {}) {
     const media = await syncMedia(db, reg, opts);
     stats.mediaUpdated = media.updated;
     errors.push(...media.errors);
-    const files = await syncCommunityFiles(db, { fetch: opts.fetch, maxBytes: opts.communityHashMaxBytes });
+    const files = await syncCommunityFiles(db, { fetch: opts.fetch, maxBytes: opts.communityHashMaxBytes, guard: opts.guard });
     stats.communityFiles = files.updated;
     errors.push(...files.errors);
     if (opts.raApiKey) {

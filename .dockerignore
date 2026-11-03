@@ -5,3 +5,6 @@
 .env.*
 **/*.log
 **/test-results
+**/test
+**/*.test.ts
+**/tsconfig.tsbuildinfo
