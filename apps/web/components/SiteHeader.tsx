@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { AccountButton } from './AccountButton';
 import { Clock } from './Clock';
 import { Icon } from './Icon';
 
@@ -37,6 +38,7 @@ export function SiteHeader() {
           <input type="search" name="q" placeholder={t('search')} aria-label={t('search')} data-nav />
         </form>
         <Clock />
+        <AccountButton />
       </div>
     </header>
   );

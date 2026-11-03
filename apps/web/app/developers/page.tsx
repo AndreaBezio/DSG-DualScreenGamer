@@ -7,12 +7,16 @@ import { PUBLIC_API_URL } from '@/lib/api';
 export const metadata: Metadata = { title: 'Developers' };
 
 const ENDPOINTS = [
-  ['/v1/lookup', 'lookup'],
-  ['/v1/mods/{id}/releases/latest', 'latest'],
-  ['/v1/mods', 'mods'],
-  ['/v1/games', 'games'],
-  ['/v1/platforms · /v1/emulators · /v1/devices', 'catalog'],
-  ['/v1/index.json', 'index'],
+  ['GET', '/v1/lookup', 'lookup'],
+  ['POST', '/v1/lookup/batch', 'batch'],
+  ['GET', '/v1/index/compact.json', 'compact'],
+  ['GET', '/v1/updates', 'updates'],
+  ['GET', '/v1/feed.atom · /v1/feed.json', 'feed'],
+  ['GET', '/v1/mods/{id}/releases/latest', 'latest'],
+  ['GET', '/v1/mods', 'mods'],
+  ['GET', '/v1/games', 'games'],
+  ['GET', '/v1/platforms · /v1/emulators · /v1/devices', 'catalog'],
+  ['GET', '/v1/index.json', 'index'],
 ] as const;
 
 export default async function Developers() {
@@ -46,14 +50,15 @@ export default async function Developers() {
       <section className="sheet">
         <h2>{t('endpoints')}</h2>
         <ul className="endpoints">
-          {ENDPOINTS.map(([path, key]) => (
+          {ENDPOINTS.map(([method, path, key]) => (
             <li key={path}>
-              <span className="method">GET</span>
+              <span className="method">{method}</span>
               <code>{path}</code>
               <span className="muted">{t(`ep.${key}`)}</span>
             </li>
           ))}
         </ul>
+        <p className="fineprint">{t('ids')}</p>
         <p className="fineprint">{t('userAgent')}</p>
         <p className="fineprint">{t('offline')}</p>
       </section>

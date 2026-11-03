@@ -52,9 +52,14 @@ export default async function ModPage({ params }: Props) {
           <TileArt id={mod.id} type={mod.type} cover={mod.cover_url} title={mod.name} />
         </span>
         <div className="item-title">
-          <span className={`badge type-${mod.type}`}>
-            <Icon name={mod.type} size={14} />
-            {tt(mod.type)}
+          <span className="badge-row">
+            <span className={`badge type-${mod.type}`}>
+              <Icon name={mod.type} size={14} />
+              {tt(mod.type)}
+            </span>
+            <span className={`badge badge-origin`} title={t(`origin.${mod.origin}Hint`)}>
+              {t(`origin.${mod.origin}`)}
+            </span>
           </span>
           <h1>{mod.name}</h1>
           <p className="muted">
@@ -71,21 +76,29 @@ export default async function ModPage({ params }: Props) {
           <p className="item-summary">{mod.summary}</p>
         </div>
         <div className="item-actions">
+          {mod.manual_download && mod.source_url ? (
+            <a href={mod.source_url} className="btn btn-primary" data-nav rel="noopener">
+              <Icon name="external" size={16} />
+              {t('downloadPage')}
+            </a>
+          ) : null}
           {rel ? (
             rel.assets.map((a) => (
               <a key={a.name} href={a.url} className="btn btn-primary" data-nav rel="noopener">
                 <Icon name="download" size={16} />
                 <span className="btn-label">{a.name}</span>
-                <span className="btn-meta">{formatBytes(a.size)}</span>
+                {a.size > 0 ? <span className="btn-meta">{formatBytes(a.size)}</span> : null}
               </a>
             ))
-          ) : (
+          ) : mod.manual_download ? null : (
             <p className="fineprint">{t('noRelease')}</p>
           )}
-          <a href={`https://github.com/${mod.source_repo}`} className="btn btn-ghost" data-nav rel="noopener">
-            <Icon name="external" size={16} />
-            GitHub
-          </a>
+          {mod.source_url && !mod.manual_download ? (
+            <a href={mod.source_url} className="btn btn-ghost" data-nav rel="noopener">
+              <Icon name="external" size={16} />
+              {mod.source_repo ? 'GitHub' : t('projectPage')}
+            </a>
+          ) : null}
         </div>
       </header>
 
@@ -171,7 +184,7 @@ export default async function ModPage({ params }: Props) {
                   </li>
                 ))}
               </ul>
-              {releases.length > 1 ? (
+              {releases.length > 1 && mod.source_repo ? (
                 <a href={`https://github.com/${mod.source_repo}/releases`} className="side-link" data-nav rel="noopener">
                   {t('allReleases')} ({releases.length})
                 </a>

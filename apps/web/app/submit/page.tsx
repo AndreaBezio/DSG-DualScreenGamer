@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { Icon } from '@/components/Icon';
 
 export const metadata: Metadata = { title: 'Add a mod' };
+export const dynamic = 'force-dynamic';
 
 const REPO = process.env.PUBLIC_REPO_URL ?? 'https://github.com/AndreaBezio/DSG-DualScreenGamer';
 
@@ -30,14 +32,30 @@ export default async function Submit() {
   return (
     <article className="doc">
       <header className="page-head page-head-doc">
-        <span className="badge type-patch">Registry</span>
         <h1>{t('title')}</h1>
-        <p className="lead">{t('lead')}</p>
-        <a href={`${REPO}/blob/main/docs/manifest.md`} className="btn btn-primary" data-nav rel="noopener">
-          <Icon name="external" size={16} />
-          {t('guide')}
-        </a>
+        <p className="lead">{t('chooseLead')}</p>
       </header>
+      <div className="choice-grid">
+        <section className="sheet choice">
+          <span className="badge type-dual_screen_layout">{t('siteBadge')}</span>
+          <h2 className="choice-title">{t('siteTitle')}</h2>
+          <p>{t('siteBody')}</p>
+          <Link href="/submit/new" className="btn btn-primary" data-nav>
+            <Icon name="plus" size={16} />
+            {t('siteButton')}
+          </Link>
+        </section>
+        <section className="sheet choice">
+          <span className="badge type-patch">Registry</span>
+          <h2 className="choice-title">{t('repoTitle')}</h2>
+          <p>{t('lead')}</p>
+          <a href={`${REPO}/blob/main/docs/manifest.md`} className="btn btn-ghost" data-nav rel="noopener">
+            <Icon name="external" size={16} />
+            {t('guide')}
+          </a>
+        </section>
+      </div>
+      <h2 className="section-title">{t('repoTitle')}</h2>
       <section className="sheet">
         <ol className="steps">
           <li>{t('step1')}</li>

@@ -8,7 +8,8 @@
     "games": "Games",
     "developers": "Developers",
     "submit": "Add a mod",
-    "search": "Search mods"
+    "search": "Search mods",
+    "signIn": "Sign in"
   },
   "footer": {
     "line": "DSG links to the authors' own GitHub releases. Mods belong to their authors.",
@@ -85,7 +86,15 @@
       "install_apk": "Install the {asset} APK",
       "note": "{text}"
     },
-    "showcase": "From the mod page"
+    "showcase": "From the mod page",
+    "downloadPage": "Go to download page",
+    "projectPage": "Project page",
+    "origin": {
+      "registry": "Registry",
+      "community": "Community",
+      "registryHint": "Listed through a manifest in the DSG GitHub registry",
+      "communityHint": "Submitted on DSG and reviewed by a moderator"
+    }
   },
   "preview": {
     "title": "Top and bottom screen",
@@ -112,10 +121,15 @@
       "mods": "Filter by game, type, platform, emulator, device",
       "games": "Search games and their identifiers",
       "catalog": "Ids to use in filters",
-      "index": "Everything at once, for offline caches (ETag)"
+      "index": "Everything at once, for offline caches (ETag)",
+      "batch": "Up to 500 lookups in one request",
+      "compact": "Every key of every game with mods, to badge a library offline",
+      "updates": "Newer compatible releases of installed mods",
+      "feed": "New mods and releases"
     },
     "userAgent": "Send a User-Agent naming your app. The API is read-only, CORS-enabled and rate limited.",
-    "offline": "Prefer an offline cache? Mirror /v1/index.json and revalidate with If-None-Match."
+    "offline": "Prefer an offline cache? Mirror /v1/index.json and revalidate with If-None-Match.",
+    "ids": "Frontends can identify games by hash, title id, serial, store id, IGDB id, RetroAchievements / ScreenScraper / LaunchBox id or No-Intro file name, and name platforms their own way: n3ds, igdb:37, ra:5, screenscraper:12."
   },
   "submit": {
     "title": "Add your mod to DSG",
@@ -127,7 +141,13 @@
     "images": "Screenshots",
     "imagesBody": "DSG picks up the images in your README, your release notes and image files attached to the release. Name a pair like map-top.png and map-bottom.png (or list them under previews) and they are shown together on the two-screen preview.",
     "example": "Example manifest",
-    "guide": "Read the manifest guide"
+    "guide": "Read the manifest guide",
+    "chooseLead": "List a mod in two ways: fill in a form here and upload your top and bottom screen screenshots, or add a manifest to the GitHub registry.",
+    "siteBadge": "On the website",
+    "siteTitle": "Add it here",
+    "siteBody": "Sign in with GitHub or Discord, describe the mod, upload what each screen shows and link the files. A moderator reviews it before it goes live.",
+    "siteButton": "Start",
+    "repoTitle": "With a manifest on GitHub"
   },
   "notFound": {
     "title": "Nothing on this cartridge",
@@ -137,5 +157,178 @@
   "error": {
     "api": "The DSG API is not reachable right now.",
     "retry": "Try again"
+  },
+  "login": {
+    "title": "Sign in to DSG",
+    "lead": "Sign in to add mods, upload screenshots and follow your submissions.",
+    "github": "Continue with GitHub",
+    "discord": "Continue with Discord",
+    "none": "Sign-in is not configured on this server yet.",
+    "privacy": "DSG only reads your public name and avatar.",
+    "error": {
+      "failed": "Sign-in did not complete. Please try again.",
+      "suspended": "This account is suspended."
+    }
+  },
+  "account": {
+    "role": {
+      "user": "Member",
+      "moderator": "Moderator",
+      "admin": "Administrator"
+    },
+    "moderation": "Moderation",
+    "newMod": "Add a mod",
+    "signOut": "Sign out",
+    "submissions": "Your submissions",
+    "noSubmissions": "Nothing submitted yet.",
+    "untitled": "Untitled draft",
+    "yourMods": "Your published mods",
+    "hidden": "hidden by a moderator",
+    "edit": "Edit"
+  },
+  "admin": {
+    "title": "Moderation",
+    "empty": "Nothing here.",
+    "edit": "Edit",
+    "new": "New mod",
+    "by": "by {user}",
+    "details": "Details",
+    "raw": "Submitted data",
+    "decision": "Decision",
+    "notePlaceholder": "Note for the author (required to request changes or reject)",
+    "approve": "Approve and publish",
+    "requestChanges": "Request changes",
+    "reject": "Reject",
+    "more": "More actions",
+    "unpublish": "Hide the published mod",
+    "ban": "Suspend this user",
+    "banConfirm": "Suspend this user and hide their mods?"
+  },
+  "form": {
+    "titleNew": "Add a mod",
+    "lead": "Tell players what your mod does and show both screens. Drafts are saved as you go.",
+    "editingLead": "You are editing a published mod. Changes go live after a moderator reviews them.",
+    "steps": "Steps",
+    "step": {
+      "game": "Game",
+      "mod": "Mod",
+      "compat": "Works with",
+      "screens": "Screens",
+      "download": "Download",
+      "install": "Install",
+      "review": "Review"
+    },
+    "status": {
+      "draft": "Draft",
+      "pending": "Waiting for review",
+      "changes_requested": "Changes requested",
+      "approved": "Published",
+      "rejected": "Rejected"
+    },
+    "save": {
+      "idle": "",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "error": "Could not save"
+    },
+    "back": "Back",
+    "next": "Next",
+    "remove": "Remove",
+    "value": "Value",
+    "region": "Region",
+    "gameExisting": "A game already on DSG",
+    "gameNew": "A new game",
+    "gameSearch": "Find the game",
+    "gameSearchPlaceholder": "Type a title",
+    "gameChosen": "Selected: {title}",
+    "gameTitle": "Title",
+    "gamePlatform": "Platform",
+    "identifiers": "How emulators recognise it",
+    "identifiersHint": "ROM hash, title id, serial or store id. One per region/revision your mod supports.",
+    "addIdentifier": "Add an identifier",
+    "romTitle": "Recognise your ROM",
+    "romHint": "Pick your ROM file: it is hashed here in the browser and never uploaded.",
+    "romKnown": "This dump is already on DSG as {title}.",
+    "romUseGame": "Use this game",
+    "romDat": "Recognised as {name}.",
+    "romUnknown": "Not in the No-Intro / Redump databases.",
+    "romAdd": "Add these identifiers",
+    "name": "Name",
+    "type": "Type",
+    "summary": "Short summary",
+    "description": "Description",
+    "descriptionHint": "Markdown; blank lines separate paragraphs.",
+    "tags": "Tags",
+    "tagsHint": "Comma separated, up to 8.",
+    "license": "License",
+    "authors": "Authors",
+    "authorName": "Name",
+    "authorGithub": "GitHub user (optional)",
+    "addAuthor": "Add an author",
+    "homepage": "Homepage",
+    "compatHint": "Where the mod works. Leave the emulator empty if any emulator for that platform will do.",
+    "platform": "Platform",
+    "anyEmulator": "Any emulator",
+    "minVersion": "Min version",
+    "maxVersion": "Max version",
+    "dumpsHint": "Only for these dumps (leave all unticked for every dump):",
+    "addTarget": "Add a platform / emulator",
+    "devices": "Designed for",
+    "devicesHint": "Leave empty if it works on any dual-screen setup.",
+    "requires": "Requirements",
+    "requiresHint": "One per line.",
+    "screensHint": "Upload what the top screen and the bottom screen show at the same moment, as separate images. Real captures, PNG/JPEG/WebP, at least 320×180, up to 10 MB.",
+    "pair": "Screens #{n}",
+    "topScreen": "Top screen",
+    "bottomScreen": "Bottom screen",
+    "caption": "Caption (optional)",
+    "useAsCover": "Use as card image",
+    "addPair": "Add another pair",
+    "livePreview": "Preview",
+    "previewEmpty": "Upload a top and a bottom screenshot to see the preview.",
+    "gallery": "More screenshots",
+    "galleryHint": "Optional, up to 8.",
+    "dropImage": "Drop an image or click",
+    "uploading": "Uploading…",
+    "warnTop": "This looks like a portrait image: is it really the top screen?",
+    "warnBottom": "Very wide for a bottom screen: is it the top one?",
+    "downloadManual": "Direct links",
+    "downloadGithub": "GitHub releases",
+    "githubHint": "DSG follows your GitHub releases and picks up new versions automatically.",
+    "githubRepo": "Repository",
+    "assetPatterns": "Release files",
+    "addPattern": "Add a file pattern",
+    "prereleases": "Include pre-releases",
+    "version": "Version",
+    "releasedAt": "Release date",
+    "files": "Files",
+    "filesHint": "Direct download links. DSG checks their size and SHA-256.",
+    "fileLabel": "File name",
+    "addFile": "Add a file",
+    "pageUrl": "Download page",
+    "pageUrlHint": "If there is no direct link, the page where people download it.",
+    "changelog": "What changed",
+    "role": {
+      "main": "Main file",
+      "companion_apk": "Companion APK",
+      "optional": "Optional",
+      "source": "Source"
+    },
+    "installHint": "Optional: steps an emulator or launcher can run to install the mod automatically.",
+    "action": {
+      "extract": "Extract",
+      "copy": "Copy",
+      "install_apk": "Install APK",
+      "note": "Show a note"
+    },
+    "whichFile": "Which file",
+    "addStep": "Add a step",
+    "consentRights": "I am the author of this mod or have permission to list it.",
+    "consentFiles": "It contains no ROMs, BIOS or files copied from the game.",
+    "check": "Check",
+    "submit": "Send for review",
+    "allGood": "Everything looks good.",
+    "submitted": "Sent! A moderator will review it soon.",
+    "unknownError": "Something went wrong."
   }
 }

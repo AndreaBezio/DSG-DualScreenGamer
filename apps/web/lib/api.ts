@@ -46,7 +46,10 @@ export type Mod = {
   authors: { name: string; github?: string }[];
   license: string;
   homepage: string | null;
-  source_repo: string;
+  origin: 'registry' | 'community';
+  source_repo: string | null;
+  source_url: string | null;
+  manual_download: boolean;
   tags: string[];
   cover_url: string | null;
   media: Media[];
@@ -60,6 +63,19 @@ export type Mod = {
   updated_at: string;
 };
 export type Platform = { id: string; name: string; manufacturer: string | null; kind: string; screens: number };
+export type Submission = {
+  id: string;
+  status: 'draft' | 'pending' | 'changes_requested' | 'approved' | 'rejected';
+  mod_id: string | null;
+  name: string | null;
+  type: string | null;
+  game: string | null;
+  review_note: string | null;
+  created_at: string;
+  updated_at: string;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+};
 export type Emulator = { id: string; name: string; kind: string; platforms: string[]; homepage: string | null };
 export type Device = { id: string; name: string; manufacturer: string; screens: number };
 export type Index = { platforms: Platform[]; emulators: Emulator[]; devices: Device[]; games: Game[]; mods: Mod[] };

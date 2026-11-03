@@ -12,6 +12,12 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: t('title'), template: `%s · DSG` },
     description: t('description'),
     metadataBase: process.env.PUBLIC_SITE_URL ? new URL(process.env.PUBLIC_SITE_URL) : undefined,
+    alternates: {
+      types: {
+        'application/atom+xml': `${process.env.PUBLIC_API_URL ?? 'http://localhost:3001'}/v1/feed.atom`,
+        'application/feed+json': `${process.env.PUBLIC_API_URL ?? 'http://localhost:3001'}/v1/feed.json`,
+      },
+    },
   };
 }
 
