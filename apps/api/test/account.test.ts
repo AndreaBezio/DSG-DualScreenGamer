@@ -9,8 +9,9 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cleanupUploads, syncCommunityFiles, syncRetroAchievements } from '../../worker/src/community.ts';
-import { syncArtwork, syncRegistry, syncReleases } from '../../worker/src/sync.ts';
-import { fakeGitHubFetch, registry, testGitHub } from '../../worker/test/fixtures.ts';
+import { setState, syncArtwork, syncRegistry, syncReleases } from '../../worker/src/sync.ts';
+import { deliverOutbox } from '../../worker/src/outbox.ts';
+import { fakeGitHubFetch, registry, releases, testGitHub } from '../../worker/test/fixtures.ts';
 import { createApp } from '../src/app.ts';
 import { clearPlatformCache } from '../src/queries.ts';
 
@@ -71,7 +72,7 @@ beforeAll(async () => {
   db = createDb(url);
   await migrate(db, { migrationsFolder: fileURLToPath(new URL('../../../packages/db/drizzle', import.meta.url)) });
   await db.execute(
-    sql`truncate platforms, emulators, devices, games, game_identifiers, game_media, mods, mod_targets, mod_media, mod_releases, release_assets, sync_state, sync_runs, users, user_accounts, sessions, uploads, submissions, compat_reports, mod_install_counts, install_seen restart identity cascade`,
+    sql`truncate platforms, emulators, devices, games, game_identifiers, game_media, mods, mod_targets, mod_media, mod_releases, release_assets, sync_state, sync_runs, users, user_accounts, sessions, uploads, submissions, compat_reports, mod_install_counts, install_seen, webhooks, outbox restart identity cascade`,
   );
   await syncRegistry(db, registry);
   await syncArtwork(db, registry, { fetch: fakeGitHubFetch() });
@@ -352,6 +353,75 @@ describe('install counter', () => {
   it('sorts mods by recent installs', async () => {
     const popular = (await (await call('/v1/mods?sort=popular', null)).json()) as any;
     expect(popular.items[0].id).toBe('pocket-test-layout');
+  });
+});
+
+describe('webhooks', () => {
+  const sent: { url: string; headers: Headers; body: any }[] = [];
+  let failing = false;
+  const hookFetch = (async (u: string | URL | Request, init?: RequestInit) => {
+    sent.push({ url: String(u), headers: new Headers(init?.headers), body: JSON.parse(String(init?.body)) });
+    return new Response(null, { status: failing ? 500 : 204 });
+  }) as typeof fetch;
+  const DISCORD_URL = 'https://discord.com/api/webhooks/123456/abc-DEF_secret';
+
+  it('only admins manage webhooks, and URLs are checked', async () => {
+    const add = (token: string, body: object) => call('/v1/admin/webhooks', token, { method: 'POST', body: JSON.stringify(body) });
+    const bob = await signIn('github', 'bob');
+    expect((await add(bob, { kind: 'discord', url: DISCORD_URL })).status).toBe(403);
+    expect((await add(admin, { kind: 'discord', url: 'https://example.org/hook' })).status).toBe(400);
+    expect((await add(admin, { kind: 'json', url: 'https://10.0.0.5/hook' })).status).toBe(400);
+    expect((await add(admin, { kind: 'discord', url: DISCORD_URL, filters: { type: 'texture_pack' } })).status).toBe(201);
+    const json = (await (await add(admin, { kind: 'json', url: 'https://hooks.example.org/dsg', events: ['release_published'] })).json()) as any;
+    expect(json.secret).toMatch(/.{20,}/);
+    const list = (await (await call('/v1/admin/webhooks', admin)).json()) as any;
+    expect(list.items).toHaveLength(2);
+    expect(JSON.stringify(list)).not.toContain('abc-DEF_secret');
+  });
+
+  it('announces new releases found by the sync to matching webhooks', async () => {
+    const forget = () => db.execute(sql`delete from sync_state where key like 'gh_etag:test-quest-hd:%'`);
+    // Baseline: the releases DSG already knows
+    await syncReleases(db, registry, { github: testGitHub() });
+    await setState(db, 'catalog_seeded', true);
+    const list = releases['tester/test-quest-hd']!;
+    list.unshift({ ...list[0]!, tag_name: 'v1.3.0', name: 'HD 1.3', published_at: '2026-10-30T00:00:00Z', html_url: 'https://github.com/tester/test-quest-hd/releases/tag/v1.3.0' });
+    try {
+      await forget();
+      await syncReleases(db, registry, { github: testGitHub(), siteUrl: 'https://dsg.test' });
+    } finally {
+      list.shift();
+      // Put the fixture back as other tests expect it
+      await forget();
+      await syncReleases(db, registry, { github: testGitHub() });
+    }
+    // Both webhooks match a texture pack release (the JSON one only wants releases)
+    const r = await deliverOutbox(db, { fetch: hookFetch, guard: async () => true });
+    expect(r).toEqual({ delivered: 2, failed: 0 });
+    const discord = sent.find((s) => s.url === DISCORD_URL)!;
+    expect(discord.body.embeds[0]).toMatchObject({ title: 'Test Quest HD 1.3.0', url: 'https://dsg.test/mods/test-quest-hd' });
+    const json = sent.find((s) => s.url === 'https://hooks.example.org/dsg')!;
+    expect(json.headers.get('x-dsg-event')).toBe('release_published');
+    expect(json.body).toMatchObject({ event: 'release_published', release: { version: '1.3.0' }, mod: { id: 'test-quest-hd' } });
+    // The signature is an HMAC of the exact body with the secret shown at creation
+    expect(json.headers.get('x-dsg-signature')).toMatch(/^sha256=[0-9a-f]{64}$/);
+    expect((await deliverOutbox(db, { fetch: hookFetch, guard: async () => true })).delivered).toBe(0);
+  });
+
+  it('retries failed deliveries with backoff, three times at most', async () => {
+    const [hook] = ((await (await call('/v1/admin/webhooks', admin)).json()) as any).items.filter((w: any) => w.kind === 'discord');
+    expect((await call(`/v1/admin/webhooks/${hook.id}/test`, admin, { method: 'POST' })).status).toBe(202);
+    failing = true;
+    const t0 = Date.now();
+    expect((await deliverOutbox(db, { fetch: hookFetch, now: new Date(t0) })).failed).toBe(1);
+    // Not due yet
+    expect((await deliverOutbox(db, { fetch: hookFetch, now: new Date(t0 + 30_000) })).failed).toBe(0);
+    expect((await deliverOutbox(db, { fetch: hookFetch, now: new Date(t0 + 61_000) })).failed).toBe(1);
+    expect((await deliverOutbox(db, { fetch: hookFetch, now: new Date(t0 + 10 * 60_000) })).failed).toBe(1);
+    expect((await deliverOutbox(db, { fetch: hookFetch, now: new Date(t0 + 60 * 60_000) })).failed).toBe(0);
+    failing = false;
+    const after = ((await (await call('/v1/admin/webhooks', admin)).json()) as any).items.find((w: any) => w.id === hook.id);
+    expect(after.last_status).toMatch(/HTTP 500/);
   });
 });
 

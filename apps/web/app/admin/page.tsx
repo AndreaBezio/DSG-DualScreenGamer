@@ -28,6 +28,11 @@ export default async function Admin({ searchParams }: Props) {
     <article className="doc">
       <header className="page-head">
         <h1>{t('title')}</h1>
+        {me.role === 'admin' ? (
+          <Link href="/admin/webhooks" className="btn btn-ghost" data-nav>
+            {t('webhooks')}
+          </Link>
+        ) : null}
       </header>
       <nav className="chip-tabs">
         {TABS.map((s) => (

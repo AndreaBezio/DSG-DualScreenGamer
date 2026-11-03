@@ -2,6 +2,7 @@
 import {
   devices,
   emulators,
+  enqueueEvent,
   gameIdentifiers,
   games,
   modReleases,
@@ -19,7 +20,7 @@ import {
 } from '@dsg/db';
 import { CommunitySubmission, normalizeIdentifier } from '@dsg/schema';
 import { looksPublic } from '@dsg/net';
-import { and, eq, inArray, like, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, like, or } from 'drizzle-orm';
 import type { User } from './auth.ts';
 import { isModerator } from './auth.ts';
 import { mediaUrl } from './uploads.ts';
@@ -144,13 +145,16 @@ export function mediaRows(s: CommunitySubmission, dims: Map<string, { width: num
 }
 
 /** Writes an approved submission into the catalog. Returns the mod id. */
-export async function publishSubmission(db: Db, sub: Submission, s: CommunitySubmission, publicUrl: string): Promise<string> {
+export async function publishSubmission(db: Db, sub: Submission, s: CommunitySubmission, publicUrl: string, siteUrl = 'http://localhost:3000'): Promise<string> {
   const refs = [...s.screens.pairs.flatMap((p) => [p.top, p.bottom]), ...s.screens.gallery];
   const dims = new Map(
     (await db.select().from(uploads).where(inArray(uploads.sha256, refs))).map((u) => [u.sha256, { width: u.width, height: u.height }]),
   );
   const gameId = 'existing' in s.game ? s.game.existing : await uniqueId(db, games, slugify(s.game.new.title));
   const modId = sub.modId ?? (await uniqueId(db, mods, slugify(s.mod.name)));
+  const [previous] = sub.modId
+    ? await db.select({ tag: modReleases.tag }).from(modReleases).where(eq(modReleases.modId, modId)).orderBy(desc(modReleases.publishedAt)).limit(1)
+    : [];
   const owner = { origin: 'community' as const, ownerUserId: sub.userId };
 
   const source: ModSource =
@@ -231,5 +235,15 @@ export async function publishSubmission(db: Db, sub: Submission, s: CommunitySub
       await tx.insert(syncState).values({ key: 'sync_requested_at', value }).onConflictDoUpdate({ target: syncState.key, set: { value } });
     }
   });
+  // Announce: a brand-new mod, or a new manual version of an existing one
+  if (!sub.modId) await enqueueEvent(db, 'mod_published', modId, siteUrl);
+  else if (s.download.kind === 'manual' && previous?.tag !== s.download.version) {
+    await enqueueEvent(db, 'release_published', modId, siteUrl, {
+      version: s.download.version,
+      tag: s.download.version,
+      url: `${siteUrl.replace(/\/$/, '')}/mods/${modId}`,
+      published_at: (s.download.released_at ? new Date(`${s.download.released_at}T00:00:00Z`) : new Date()).toISOString(),
+    });
+  }
   return modId;
 }

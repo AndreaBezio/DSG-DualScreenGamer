@@ -15,3 +15,4 @@ export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 export type DbOrTx = Db | Tx;
 
 export * from './write.ts';
+export * from './events.ts';

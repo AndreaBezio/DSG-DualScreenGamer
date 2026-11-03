@@ -22,6 +22,7 @@ import { safeEqual } from './auth.ts';
 import * as fe from './frontend.ts';
 import { installRoutes } from './installs.ts';
 import { reportRoutes } from './reports.ts';
+import { webhookRoutes } from './webhooks.ts';
 import * as q from './queries.ts';
 import { rateLimit } from './rate-limit.ts';
 
@@ -433,8 +434,9 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   app.get('/v1/docs', Scalar({ url: '/v1/openapi.json', pageTitle: 'DSG API' }));
 
   app.route('/v1', reportRoutes(db));
+  app.route('/v1/admin', webhookRoutes(db, siteUrl));
   app.route('/v1', installRoutes(db, { salt: opts.installSalt ?? randomBytes(32).toString('hex'), trustProxy: opts.trustProxy ?? false }));
-  app.route('/', accountRoutes(db, { publicUrl: opts.publicUrl, ...opts.account }));
+  app.route('/', accountRoutes(db, { publicUrl: opts.publicUrl, siteUrl: opts.siteUrl, ...opts.account }));
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));
   app.onError((err, c) => {

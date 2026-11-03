@@ -207,7 +207,8 @@
     "more": "More actions",
     "unpublish": "Hide the published mod",
     "ban": "Suspend this user",
-    "banConfirm": "Suspend this user and hide their mods?"
+    "banConfirm": "Suspend this user and hide their mods?",
+    "webhooks": "Webhooks"
   },
   "form": {
     "titleNew": "Add a mod",
@@ -375,5 +376,37 @@
     "reports": "Player reports on this device",
     "specSources": "Specifications from",
     "modCount": "{count, plural, =0 {No mods made for it yet} one {# mod made for it} other {# mods made for it}}"
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "lead": "Announce new mods and releases in a Discord channel, or send them to any service as signed JSON.",
+    "back": "Moderation",
+    "add": "Add a webhook",
+    "list": "Webhooks",
+    "none": "No webhooks yet.",
+    "kind": {
+      "discord": "Discord",
+      "json": "JSON"
+    },
+    "hint": {
+      "discord": "In Discord: Channel settings › Integrations › Webhooks › New webhook › Copy webhook URL.",
+      "json": "DSG POSTs the event as JSON with X-DSG-Event and an X-DSG-Signature HMAC-SHA256 of the body."
+    },
+    "event": {
+      "mod_published": "New mods",
+      "release_published": "New releases"
+    },
+    "onlyType": "Only this type",
+    "anyType": "Any type",
+    "onlyDevice": "Only this device",
+    "anyDevice": "Any device",
+    "save": "Add",
+    "secret": "Signing secret (shown only now):",
+    "last": "Last delivery",
+    "never": "Not delivered yet",
+    "pending": "{count} waiting",
+    "test": "Send test",
+    "delete": "Delete",
+    "confirmDelete": "Delete this webhook?"
   }
 }

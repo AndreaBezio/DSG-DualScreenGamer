@@ -57,6 +57,13 @@
       "when": 1793702055162,
       "tag": "0007_install_counts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793702169722,
+      "tag": "0008_webhooks",
+      "breakpoints": true
     }
   ]
 }

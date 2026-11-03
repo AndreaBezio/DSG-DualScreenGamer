@@ -1,5 +1,6 @@
 // Long-running worker: syncs on start, every SYNC_INTERVAL_MINUTES, and whenever the API flags a request.
 import { createDb } from '@dsg/db';
+import { deliverOutbox } from './outbox.ts';
 import { loadRegistry } from './registry.ts';
 import { prepareRegistry } from './source.ts';
 import { getState, runSync, setState } from './sync.ts';
@@ -11,6 +12,8 @@ let lastRun = 0;
 let running = false;
 
 async function tick() {
+  // Announcements go out every minute, independently of the sync schedule
+  await deliverOutbox(db).catch((e) => console.error('outbox', e));
   if (running) return;
   const requested = await getState<number>(db, 'sync_requested_at');
   if (Date.now() - lastRun < intervalMs && !(requested && requested > lastRun)) return;
@@ -22,7 +25,7 @@ async function tick() {
       // Keep serving the last good data; a broken manifest must never wipe the catalog
       console.error(`registry invalid, sync skipped:\n${errors.join('\n')}`);
     } else {
-      await runSync(db, registry, { hashMaxBytes, raApiKey: process.env.RA_API_KEY || undefined, uploadDir: process.env.UPLOAD_DIR });
+      await runSync(db, registry, { hashMaxBytes, raApiKey: process.env.RA_API_KEY || undefined, uploadDir: process.env.UPLOAD_DIR, siteUrl: process.env.PUBLIC_SITE_URL });
     }
   } catch (e) {
     console.error('sync failed', e);

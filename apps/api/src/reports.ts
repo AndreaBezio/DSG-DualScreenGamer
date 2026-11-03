@@ -87,7 +87,7 @@ export function reportRoutes(db: Db) {
   });
 
   const me = new Hono<Env>();
-  me.use('*', requireUser(db));
+  for (const path of ['/reports', '/reports/*']) me.use(path, requireUser(db));
 
   me.post('/reports', async (c) => {
     const parsed = ReportInput.safeParse(await c.req.json().catch(() => null));
@@ -150,7 +150,7 @@ export function reportRoutes(db: Db) {
   });
 
   const admin = new Hono<Env>();
-  admin.use('*', requireModerator(db));
+  admin.use('/reports/*', requireModerator(db));
   admin.post('/reports/:id/hidden', async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as { hidden?: boolean };
     if (typeof body.hidden !== 'boolean') return c.json({ error: 'send { "hidden": true|false }' }, 400);

@@ -139,3 +139,13 @@ export function requireModerator(db: Db): MiddlewareHandler<Env> {
     await next();
   };
 }
+
+export function requireAdmin(db: Db): MiddlewareHandler<Env> {
+  return async (c, next) => {
+    const user = await userFromToken(db, bearer(c));
+    if (!user) return c.json({ error: 'sign in required' }, 401);
+    if (user.role !== 'admin') return c.json({ error: 'admins only' }, 403);
+    c.set('user', user);
+    await next();
+  };
+}

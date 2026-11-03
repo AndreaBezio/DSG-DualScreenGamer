@@ -392,3 +392,45 @@ export const installSeen = pgTable('install_seen', {
   hash: text('hash').primaryKey(),
   day: text('day').notNull(),
 });
+
+/** Where to announce new mods and releases: a Discord channel webhook or any JSON endpoint. */
+export const webhooks = pgTable('webhooks', {
+  id: text('id').primaryKey(),
+  /** discord | json */
+  kind: text('kind').notNull(),
+  url: text('url').notNull(),
+  /** HMAC key for json webhooks (X-DSG-Signature) */
+  secret: text('secret').notNull(),
+  events: text('events').array().notNull(),
+  filters: jsonb('filters').$type<{ game?: string; type?: string; device?: string }>().notNull().default(sql`'{}'`),
+  active: boolean('active').notNull().default(true),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  lastStatus: text('last_status'),
+  lastDeliveryAt: timestamp('last_delivery_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** One pending delivery per webhook and event; the worker sends them and retries failures. */
+export const outbox = pgTable(
+  'outbox',
+  {
+    id: serial('id').primaryKey(),
+    webhookId: text('webhook_id')
+      .notNull()
+      .references(() => webhooks.id, { onDelete: 'cascade' }),
+    event: text('event').notNull(),
+    payload: jsonb('payload').$type<EventPayload>().notNull(),
+    attempts: smallint('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('outbox_pending_idx').on(t.deliveredAt, t.nextAttemptAt)],
+);
+
+export type EventPayload = {
+  event: 'mod_published' | 'release_published' | 'test';
+  mod: { id: string; name: string; type: string; summary: string; game: string | null; devices: string[]; url: string; cover_url: string | null };
+  release?: { version: string; tag: string; url: string; published_at: string };
+};

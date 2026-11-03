@@ -32,6 +32,8 @@ export type AccountOptions = {
   uploadDir?: string;
   uploadMaxBytes?: number;
   publicUrl?: string;
+  /** Website base URL, for links in announcements */
+  siteUrl?: string;
   fetch?: typeof fetch;
 };
 
@@ -289,7 +291,7 @@ export function accountRoutes(db: Db, opts: AccountOptions) {
     if (row.s.status !== 'pending') return c.json({ error: `submission is ${row.s.status}` }, 409);
     const v = await validateSubmission(db, row.s.payload, row.user, row.s.modId);
     if (!v.ok) return c.json({ error: 'the submission has problems', errors: v.errors }, 422);
-    const modId = await publishSubmission(db, row.s, v.data, publicUrl);
+    const modId = await publishSubmission(db, row.s, v.data, publicUrl, opts.siteUrl);
     const [u] = await db
       .update(submissions)
       .set({ status: 'approved', modId, reviewerId: c.get('user').id, reviewedAt: new Date(), updatedAt: new Date() })

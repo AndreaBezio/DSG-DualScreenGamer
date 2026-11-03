@@ -12,6 +12,7 @@ import {
   releaseAssets,
   syncRuns,
   syncState,
+  enqueueEvent,
   idsOwnedBy,
   isGithubSource,
   type GithubSource,
@@ -38,6 +39,8 @@ export type SyncOptions = {
   log?: (msg: string) => void;
   /** Used for libretro DATs and thumbnails (tests pass a fake). */
   fetch?: FetchLike;
+  /** Website base URL for links in announcements (default PUBLIC_SITE_URL) */
+  siteUrl?: string;
   /** Which user-chosen URLs may be fetched (default: public https hosts only) */
   guard?: UrlGuard;
   /** Community file links are hashed up to this size (default 512 MB) */
@@ -75,8 +78,9 @@ export function dbTokenStore(db: Db): TokenStore {
  * community rows (submitted on the website) are never touched, and a registry manifest
  * whose id is already taken by a community mod is skipped with an error.
  */
-export async function syncRegistry(db: Db, reg: Registry): Promise<{ errors: string[] }> {
+export async function syncRegistry(db: Db, reg: Registry, opts: SyncOptions = {}): Promise<{ errors: string[] }> {
   const errors: string[] = [];
+  const known = new Set((await db.select({ id: mods.id }).from(mods)).map((m) => m.id));
   await db.transaction(async (tx) => {
     for (const p of reg.catalog.platforms) {
       const row = {
@@ -197,8 +201,14 @@ export async function syncRegistry(db: Db, reg: Registry): Promise<{ errors: str
     await tx.delete(devices).where(notInArray(devices.id, reg.catalog.devices.map((d) => d.id)));
     await tx.delete(platforms).where(notInArray(platforms.id, reg.catalog.platforms.map((p) => p.id)));
   });
+  // New manifests are announced, except on the very first sync of an empty catalog
+  if (await getState<boolean>(db, 'catalog_seeded')) {
+    for (const m of reg.mods) if (!known.has(m.id)) await enqueueEvent(db, 'mod_published', m.id, siteUrlOf(opts));
+  }
   return { errors };
 }
+
+const siteUrlOf = (opts: SyncOptions) => opts.siteUrl ?? process.env.PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 /** Mods whose releases come from GitHub: the registry's plus approved community ones. */
 export async function githubMods(db: Db, reg: Registry): Promise<{ id: string; source: GithubSource }[]> {
@@ -250,6 +260,9 @@ export async function syncReleases(db: Db, reg: Registry, opts: SyncOptions = {}
       if (res.notModified) continue;
 
       const resolved = resolveReleases(m, res.releases);
+      const before = new Set(
+        (await db.select({ tag: modReleases.tag }).from(modReleases).where(eq(modReleases.modId, m.id))).map((r) => r.tag),
+      );
       for (const r of resolved) {
         if (opts.hashMaxBytes) {
           for (const a of r.assets) {
@@ -297,6 +310,18 @@ export async function syncReleases(db: Db, reg: Registry, opts: SyncOptions = {}
       const newestTag = resolved[0]?.tag;
       const newest = res.releases.find((r) => r.tag_name === newestTag) ?? res.releases.find((r) => !r.draft);
       await setState(db, `release_images:${m.id}`, (newest?.assets ?? []).map((a) => ({ name: a.name, browser_download_url: a.browser_download_url })));
+
+      // Announce tags we had not seen; a mod's first fetch is covered by mod_published
+      if (before.size && (await getState<boolean>(db, 'catalog_seeded'))) {
+        for (const r of resolved.filter((x) => !before.has(x.tag))) {
+          await enqueueEvent(db, 'release_published', m.id, siteUrlOf(opts), {
+            version: r.version,
+            tag: r.tag,
+            url: r.htmlUrl,
+            published_at: r.publishedAt.toISOString(),
+          });
+        }
+      }
 
       const repo = await gh.repo(m.source.github).catch(() => null);
       if (repo) await db.update(mods).set({ stars: repo.stargazers_count }).where(eq(mods.id, m.id));
@@ -518,7 +543,7 @@ export async function runSync(db: Db, reg: Registry, opts: SyncOptions = {}) {
   const errors: string[] = [];
   const stats: Record<string, number> = { games: reg.games.length, mods: reg.mods.length };
   try {
-    errors.push(...(await syncRegistry(db, reg)).errors);
+    errors.push(...(await syncRegistry(db, reg, opts)).errors);
     const art = await syncArtwork(db, reg, opts);
     stats.artworkUpdated = art.updated;
     errors.push(...art.errors);
@@ -548,6 +573,7 @@ export async function runSync(db: Db, reg: Registry, opts: SyncOptions = {}) {
   } catch (e) {
     errors.push((e as Error).message);
   }
+  await setState(db, 'catalog_seeded', true);
   const status = errors.length ? 'partial' : 'ok';
   await db
     .update(syncRuns)
