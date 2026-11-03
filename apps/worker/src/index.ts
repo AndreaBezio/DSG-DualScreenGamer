@@ -22,7 +22,7 @@ async function tick() {
       // Keep serving the last good data; a broken manifest must never wipe the catalog
       console.error(`registry invalid, sync skipped:\n${errors.join('\n')}`);
     } else {
-      await runSync(db, registry, { hashMaxBytes });
+      await runSync(db, registry, { hashMaxBytes, raApiKey: process.env.RA_API_KEY || undefined, uploadDir: process.env.UPLOAD_DIR });
     }
   } catch (e) {
     console.error('sync failed', e);

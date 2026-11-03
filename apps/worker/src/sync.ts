@@ -14,17 +14,20 @@ import {
   syncRuns,
   syncState,
   idsOwnedBy,
+  isGithubSource,
+  type GithubSource,
   writeGame,
   writeMod,
   type Db,
 } from '@dsg/db';
-import { normalizeIdentifier } from '@dsg/schema';
-import { and, desc, eq, isNotNull, isNull, like, lt, ne, notInArray, or } from 'drizzle-orm';
+import { normalizeIdentifier, type GameManifest, type IdentifierKind } from '@dsg/schema';
+import { and, desc, eq, inArray, isNotNull, isNull, like, lt, notInArray, or } from 'drizzle-orm';
 import { GitHubClient, resolveReleases, type GhAsset } from './github.ts';
 import { artworkSignature, fetchDat, indexDat, libretroArtwork, urlExists, type ArtworkMatch, type DatGame } from './artwork.ts';
 import type { FetchLike } from './github.ts';
 import { IgdbClient, igdbCoverUrl, igdbImageUrl, type TokenStore } from './igdb.ts';
 import { autoCandidates, buildAutoMedia, extractImages, manifestMedia, rawUrl, resolveImageUrl } from './media.ts';
+import { cleanupUploads, syncCommunityFiles, syncRetroAchievements } from './community.ts';
 import type { Registry } from './registry.ts';
 
 export type SyncOptions = {
@@ -35,6 +38,11 @@ export type SyncOptions = {
   log?: (msg: string) => void;
   /** Used for libretro DATs and thumbnails (tests pass a fake). */
   fetch?: FetchLike;
+  /** Community file links are hashed up to this size (default 512 MB) */
+  communityHashMaxBytes?: number;
+  raApiKey?: string;
+  /** Where the API stores uploads; enables cleanup of unused ones */
+  uploadDir?: string;
 };
 
 const METADATA_TTL_MS = 30 * 24 * 3600 * 1000;
@@ -188,6 +196,37 @@ export async function syncRegistry(db: Db, reg: Registry): Promise<{ errors: str
   return { errors };
 }
 
+/** Mods whose releases come from GitHub: the registry's plus approved community ones. */
+export async function githubMods(db: Db, reg: Registry): Promise<{ id: string; source: GithubSource }[]> {
+  const community = await db.select({ id: mods.id, source: mods.source }).from(mods).where(eq(mods.origin, 'community'));
+  return [
+    ...reg.mods.map((m) => ({ id: m.id, source: m.source })),
+    ...community.flatMap((m) => (isGithubSource(m.source) ? [{ id: m.id, source: m.source }] : [])),
+  ];
+}
+
+/** Games to enrich: the registry's plus those created by community submissions. */
+export async function allGames(db: Db, reg: Registry): Promise<GameManifest[]> {
+  const community = await db.select().from(games).where(eq(games.origin, 'community'));
+  if (!community.length) return reg.games;
+  const ids = await db
+    .select()
+    .from(gameIdentifiers)
+    .where(and(inArray(gameIdentifiers.gameId, community.map((g) => g.id)), eq(gameIdentifiers.source, 'manifest')));
+  return [
+    ...reg.games,
+    ...community.map((g) => ({
+      id: g.id,
+      title: g.title,
+      platforms: g.platforms,
+      igdb: g.igdbId ?? undefined,
+      identifiers: ids
+        .filter((i) => i.gameId === g.id)
+        .map((i) => ({ kind: i.kind as IdentifierKind, value: i.value, platform: i.platform ?? undefined, region: i.region ?? undefined })),
+    })),
+  ];
+}
+
 /** Pulls releases for every mod; unchanged repos cost nothing thanks to ETags. */
 export async function syncReleases(db: Db, reg: Registry, opts: SyncOptions = {}): Promise<{ updated: number; errors: string[] }> {
   const gh = opts.github ?? new GitHubClient();
@@ -195,7 +234,7 @@ export async function syncReleases(db: Db, reg: Registry, opts: SyncOptions = {}
   const errors: string[] = [];
   let updated = 0;
 
-  for (const m of reg.mods) {
+  for (const m of await githubMods(db, reg)) {
     // The key changes with the source rules, so editing asset patterns forces a refetch
     const sourceHash = createHash('sha1').update(JSON.stringify(m.source)).digest('hex').slice(0, 12);
     const etagKey = `gh_etag:${m.id}:${sourceHash}`;
@@ -279,8 +318,9 @@ export async function syncMedia(db: Db, reg: Registry, opts: SyncOptions = {}): 
   const gh = opts.github ?? new GitHubClient();
   const errors: string[] = [];
   let updated = 0;
-  for (const m of reg.mods) {
-    const auto = and(eq(modMedia.modId, m.id), ne(modMedia.source, 'manifest'));
+  for (const m of await githubMods(db, reg)) {
+    // Images the author chose (manifest or uploads) are never replaced by found ones
+    const auto = and(eq(modMedia.modId, m.id), notInArray(modMedia.source, ['manifest', 'upload']));
     if (!m.source.auto_media) {
       await db.delete(modMedia).where(auto);
       continue;
@@ -311,7 +351,12 @@ export async function syncMedia(db: Db, reg: Registry, opts: SyncOptions = {}): 
         releaseNotesBase: rawUrl(m.source.github, 'README.md'),
         readme: readmeImages,
         assets,
-        exclude: manifestMedia(m).map((r) => r.url),
+        exclude: (
+          await db
+            .select({ url: modMedia.url })
+            .from(modMedia)
+            .where(and(eq(modMedia.modId, m.id), inArray(modMedia.source, ['manifest', 'upload'])))
+        ).map((r) => r.url),
       });
 
       const sigKey = `media_sig:${m.id}`;
@@ -357,7 +402,7 @@ export async function syncArtwork(db: Db, reg: Registry, opts: SyncOptions = {})
     return dats.get(p.id)!;
   };
 
-  for (const g of reg.games) {
+  for (const g of await allGames(db, reg)) {
     if (!g.identifiers.length) continue;
     try {
       const key = `artwork:${g.id}`;
@@ -404,6 +449,7 @@ export async function syncArtwork(db: Db, reg: Registry, opts: SyncOptions = {})
 
 /** Fills title metadata from IGDB for games never synced or older than 30 days. */
 export async function syncMetadata(db: Db, reg: Registry, igdb: IgdbClient): Promise<{ updated: number; errors: string[] }> {
+  const everyGame = await allGames(db, reg);
   const errors: string[] = [];
   let updated = 0;
   const stale = await db
@@ -412,7 +458,7 @@ export async function syncMetadata(db: Db, reg: Registry, igdb: IgdbClient): Pro
     .where(or(isNull(games.metadataSyncedAt), lt(games.metadataSyncedAt, new Date(Date.now() - METADATA_TTL_MS))));
 
   for (const row of stale) {
-    const manifest = reg.games.find((g) => g.id === row.id);
+    const manifest = everyGame.find((g) => g.id === row.id);
     if (!manifest) continue;
     try {
       const platformIds = reg.catalog.platforms.filter((p) => manifest.platforms.includes(p.id) && p.igdb).map((p) => p.igdb!);
@@ -473,6 +519,15 @@ export async function runSync(db: Db, reg: Registry, opts: SyncOptions = {}) {
     const media = await syncMedia(db, reg, opts);
     stats.mediaUpdated = media.updated;
     errors.push(...media.errors);
+    const files = await syncCommunityFiles(db, { fetch: opts.fetch, maxBytes: opts.communityHashMaxBytes });
+    stats.communityFiles = files.updated;
+    errors.push(...files.errors);
+    if (opts.raApiKey) {
+      const ra = await syncRetroAchievements(db, reg, opts.raApiKey, { fetch: opts.fetch });
+      stats.retroachievements = ra.updated;
+      errors.push(...ra.errors);
+    }
+    if (opts.uploadDir) stats.uploadsRemoved = await cleanupUploads(db, opts.uploadDir);
     const igdb = opts.igdb === undefined ? IgdbClient.fromEnv(dbTokenStore(db)) : opts.igdb;
     if (igdb) {
       const meta = await syncMetadata(db, reg, igdb);

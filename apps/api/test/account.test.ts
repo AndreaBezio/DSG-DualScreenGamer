@@ -3,11 +3,12 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createDb, games, type Db } from '@dsg/db';
+import { createDb, games, releaseAssets, uploads, type Db } from '@dsg/db';
 import { eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { cleanupUploads, syncCommunityFiles, syncRetroAchievements } from '../../worker/src/community.ts';
 import { GitHubClient } from '../../worker/src/github.ts';
 import { syncArtwork, syncRegistry, syncReleases } from '../../worker/src/sync.ts';
 import { fakeGitHubFetch, registry } from '../../worker/test/fixtures.ts';
@@ -282,6 +283,52 @@ describe('submission lifecycle', () => {
     await call(`/v1/admin/users/${me.id}/banned`, admin, { method: 'POST', body: JSON.stringify({ banned: true }) });
     expect((await call('/v1/me', alice)).status).toBe(401);
     expect((await call('/v1/mods/moon-patrol-dx-thor-layout', null)).status).toBe(404);
+  });
+});
+
+describe('worker steps for community content', () => {
+  it('hashes directly linked files once', async () => {
+    const file = new TextEncoder().encode('layout-bytes');
+    const fetchFile = (async (u: string | URL | Request) =>
+      String(u) === 'https://files.example.org/layout.zip'
+        ? new Response(file, { headers: { 'content-type': 'application/zip' } })
+        : new Response('no', { status: 404 })) as typeof fetch;
+    const r = await syncCommunityFiles(db, { fetch: fetchFile });
+    expect(r).toEqual({ updated: 1, errors: [] });
+    const mod = (await (await call('/v1/admin/submissions?status=approved', admin)).json()) as any;
+    expect(mod.items.length).toBeGreaterThan(0);
+    const [asset] = await db.select().from(releaseAssets).where(eq(releaseAssets.url, 'https://files.example.org/layout.zip'));
+    expect(asset).toMatchObject({ size: file.byteLength, contentType: 'application/zip' });
+    expect(asset!.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect((await syncCommunityFiles(db, { fetch: fetchFile })).updated).toBe(0);
+  });
+
+  it('links RetroAchievements ids by MD5 when a key is configured', async () => {
+    await syncArtwork(db, registry, { fetch: fakeGitHubFetch() });
+    const raFetch = (async (u: string | URL | Request) => {
+      const url = new URL(String(u));
+      expect(url.searchParams.get('y')).toBe('ra-key');
+      return Response.json(url.searchParams.get('i') === '5' ? [{ ID: 515, Hashes: ['A104896DA0047ABE8BEE2A6E3F4C7290'] }] : []);
+    }) as typeof fetch;
+    const catalog = { ...registry.catalog, platforms: registry.catalog.platforms.map((p) => (p.id === 'gba' ? { ...p, retroachievements: [5] } : p)) };
+    const r = await syncRetroAchievements(db, { ...registry, catalog }, 'ra-key', { fetch: raFetch });
+    expect(r).toEqual({ updated: 1, errors: [] });
+    const found = (await (await call('/v1/lookup?ra=515', null)).json()) as any;
+    expect(found.game.id).toBe('tiny-cap');
+    // The RA id stands for the USA dump, so the USA-only port matches
+    expect(found.mods.map((m: any) => m.id)).toEqual(['tiny-cap-port']);
+  });
+
+  it('removes week-old uploads that nothing uses', async () => {
+    const orphan = ((await (await upload(admin, await png(500, 300, '#ff00ff'))).json()) as any).sha256;
+    await db.update(uploads).set({ createdAt: new Date(Date.now() - 8 * 86_400_000) });
+    // The orphan plus the two images uploaded by the upload tests, which no submission uses
+    expect(await cleanupUploads(db, uploadDir)).toBe(3);
+    expect((await app.request(`/media/${orphan}.webp`)).status).toBe(404);
+    // Screenshots of the published mod (and of mallory's draft) are kept
+    const mod = (await (await call('/v1/admin/submissions?status=approved', admin)).json()) as any;
+    expect(mod.items.length).toBeGreaterThan(0);
+    expect((await db.select().from(uploads)).length).toBe(2);
   });
 });
 

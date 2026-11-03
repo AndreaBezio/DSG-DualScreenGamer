@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import type { ModManifest } from '@dsg/schema';
 import { matchesGlob } from './glob.ts';
 
 export type GhAsset = {
@@ -136,7 +135,9 @@ export function versionFromTag(tag: string): string {
 }
 
 /** Applies the manifest's source rules to raw GitHub releases. Newest first. */
-export function resolveReleases(mod: Pick<ModManifest, 'source'>, releases: GhRelease[]): ResolvedRelease[] {
+export type ReleaseSource = { assets: { role: string; pattern: string }[]; prereleases: boolean; tag_pattern?: string };
+
+export function resolveReleases(mod: { source: ReleaseSource }, releases: GhRelease[]): ResolvedRelease[] {
   const { assets: patterns, prereleases, tag_pattern } = mod.source;
   return releases
     .filter((r) => !r.draft && r.published_at)
