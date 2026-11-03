@@ -50,6 +50,13 @@
       "when": 1793701890340,
       "tag": "0006_drop_device_resolutions",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793702055162,
+      "tag": "0007_install_counts",
+      "breakpoints": true
     }
   ]
 }

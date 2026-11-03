@@ -130,6 +130,7 @@ export const ModDto = z
     install: z.array(InstallStepDto),
     latest_release: ReleaseDto.nullable(),
     compat: CompatDto,
+    installs: z.object({ total: z.number(), last_30_days: z.number() }).openapi({ description: 'Anonymous installs reported by clients' }),
     updated_at: z.string(),
   })
   .openapi('Mod');

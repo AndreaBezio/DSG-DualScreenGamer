@@ -4,6 +4,8 @@ import type { Game, Mod } from '@/lib/api';
 import { Icon } from './Icon';
 import { TileArt } from './Tile';
 
+const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
+
 /** HOME-menu style card: thick white frame, rounded picture inside, cursor on focus. */
 export function ModCard({ mod, gameTitle, platformNames }: { mod: Mod; gameTitle?: string; platformNames: Map<string, string> }) {
   const t = useTranslations('types');
@@ -21,7 +23,15 @@ export function ModCard({ mod, gameTitle, platformNames }: { mod: Mod; gameTitle
         {gameTitle ? <span className="card-sub">{gameTitle}</span> : null}
         <span className="card-meta">
           {platforms.slice(0, 2).join(' · ')}
-          {mod.latest_release ? <span className="card-version">v{mod.latest_release.version}</span> : null}
+          <span className="card-badges">
+            {mod.installs.last_30_days ? (
+              <span className="card-installs" title={t('installs')}>
+                <Icon name="download" size={12} />
+                {compact(mod.installs.last_30_days)}
+              </span>
+            ) : null}
+            {mod.latest_release ? <span className="card-version">v{mod.latest_release.version}</span> : null}
+          </span>
         </span>
       </span>
     </Link>

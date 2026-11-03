@@ -9,6 +9,7 @@ const app = createApp(db, {
   trustProxy: process.env.TRUST_PROXY === 'true',
   publicUrl: process.env.PUBLIC_API_URL,
   siteUrl: process.env.PUBLIC_SITE_URL,
+  installSalt: process.env.INSTALL_SALT || undefined,
   account: {
     internalToken: process.env.INTERNAL_TOKEN,
     uploadDir: process.env.UPLOAD_DIR ?? '/data/uploads',

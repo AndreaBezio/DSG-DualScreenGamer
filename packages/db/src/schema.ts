@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   serial,
   smallint,
   text,
@@ -371,3 +372,23 @@ export const compatReports = pgTable(
     index('compat_reports_mod_idx').on(t.modId),
   ],
 );
+
+/** Anonymous install counts per mod, day and device. No addresses are stored. */
+export const modInstallCounts = pgTable(
+  'mod_install_counts',
+  {
+    modId: text('mod_id')
+      .notNull()
+      .references(() => mods.id, { onDelete: 'cascade' }),
+    day: text('day').notNull(),
+    device: text('device').notNull().default(''),
+    count: integer('count').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.modId, t.day, t.device] })],
+);
+
+/** One-way hashes of (client, mod, day) seen today, to count each install once; older days are purged. */
+export const installSeen = pgTable('install_seen', {
+  hash: text('hash').primaryKey(),
+  day: text('day').notNull(),
+});

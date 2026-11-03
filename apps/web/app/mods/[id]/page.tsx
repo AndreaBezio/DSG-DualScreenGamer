@@ -7,6 +7,7 @@ import { DualScreenPreview } from '@/components/DualScreenPreview';
 import { Icon } from '@/components/Icon';
 import { TileArt } from '@/components/Tile';
 import { CompatReports } from '@/components/CompatReports';
+import { DownloadButton } from '@/components/DownloadButton';
 import { api, formatBytes, PUBLIC_API_URL } from '@/lib/api';
 import { getMe } from '@/lib/session';
 
@@ -96,11 +97,11 @@ export default async function ModPage({ params }: Props) {
           ) : null}
           {rel ? (
             rel.assets.map((a) => (
-              <a key={a.name} href={a.url} className="btn btn-primary" data-nav rel="noopener">
+              <DownloadButton key={a.name} href={a.url} apiUrl={PUBLIC_API_URL} modId={mod.id} version={rel.version}>
                 <Icon name="download" size={16} />
                 <span className="btn-label">{a.name}</span>
                 {a.size > 0 ? <span className="btn-meta">{formatBytes(a.size)}</span> : null}
-              </a>
+              </DownloadButton>
             ))
           ) : mod.manual_download ? null : (
             <p className="fineprint">{t('noRelease')}</p>
@@ -256,6 +257,7 @@ export default async function ModPage({ params }: Props) {
           <p className="fineprint">
             {t('license')}: {mod.license}
             {mod.stars != null ? ` · ${t('stars', { count: mod.stars })}` : ''}
+            {mod.installs.total ? ` · ${t('installs', { count: mod.installs.total })}` : ''}
           </p>
         </aside>
       </div>

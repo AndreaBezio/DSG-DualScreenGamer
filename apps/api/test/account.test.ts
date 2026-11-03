@@ -71,7 +71,7 @@ beforeAll(async () => {
   db = createDb(url);
   await migrate(db, { migrationsFolder: fileURLToPath(new URL('../../../packages/db/drizzle', import.meta.url)) });
   await db.execute(
-    sql`truncate platforms, emulators, devices, games, game_identifiers, game_media, mods, mod_targets, mod_media, mod_releases, release_assets, sync_state, sync_runs, users, user_accounts, sessions, uploads, submissions, compat_reports restart identity cascade`,
+    sql`truncate platforms, emulators, devices, games, game_identifiers, game_media, mods, mod_targets, mod_media, mod_releases, release_assets, sync_state, sync_runs, users, user_accounts, sessions, uploads, submissions, compat_reports, mod_install_counts, install_seen restart identity cascade`,
   );
   await syncRegistry(db, registry);
   await syncArtwork(db, registry, { fetch: fakeGitHubFetch() });
@@ -331,6 +331,27 @@ describe('compatibility reports', () => {
   it('keeps public routes public', async () => {
     expect((await call('/v1/mods/test-quest-hd/reports', null)).status).toBe(200);
     expect((await call('/v1/platforms', null)).status).toBe(200);
+  });
+});
+
+describe('install counter', () => {
+  const install = (mod: string, ua: string, body: object = {}) =>
+    app.request(`/v1/mods/${mod}/installs`, { method: 'POST', headers: { 'User-Agent': ua, 'content-type': 'text/plain' }, body: JSON.stringify(body) });
+
+  it('counts each client once a day, without storing who they are', async () => {
+    expect(((await (await install('pocket-test-layout', 'EmuA/1', { device: 'ayn-thor' })).json()) as any).counted).toBe(true);
+    expect(((await (await install('pocket-test-layout', 'EmuA/1', { device: 'ayn-thor' })).json()) as any).counted).toBe(false);
+    expect(((await (await install('pocket-test-layout', 'EmuB/2', { device: 'not-a-device' })).json()) as any).counted).toBe(true);
+    expect((await install('nope', 'EmuA/1')).status).toBe(404);
+    const mod = (await (await call('/v1/mods/pocket-test-layout', null)).json()) as any;
+    expect(mod.installs).toEqual({ total: 2, last_30_days: 2 });
+    const seen = await db.execute<{ hash: string }>(sql`select hash from install_seen`);
+    expect(seen.every((r) => /^[0-9a-f]{64}$/.test(r.hash))).toBe(true);
+  });
+
+  it('sorts mods by recent installs', async () => {
+    const popular = (await (await call('/v1/mods?sort=popular', null)).json()) as any;
+    expect(popular.items[0].id).toBe('pocket-test-layout');
   });
 });
 

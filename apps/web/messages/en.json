@@ -37,13 +37,18 @@
     "shader": "Shaders",
     "utility": "Utilities",
     "game": "Game",
-    "port": "Native ports"
+    "port": "Native ports",
+    "installs": "Installs in the last 30 days"
   },
   "mods": {
     "title": "All mods",
     "search": "Search mods",
     "count": "{count, plural, =0 {No mods} one {# mod} other {# mods}}",
-    "none": "No mod matches these filters."
+    "none": "No mod matches these filters.",
+    "sort": {
+      "recent": "Latest",
+      "popular": "Popular"
+    }
   },
   "games": {
     "title": "Games",
@@ -94,7 +99,8 @@
       "community": "Community",
       "registryHint": "Listed through a manifest in the DSG GitHub registry",
       "communityHint": "Submitted on DSG and reviewed by a moderator"
-    }
+    },
+    "installs": "{count, plural, one {# install} other {# installs}}"
   },
   "preview": {
     "title": "Top and bottom screen",

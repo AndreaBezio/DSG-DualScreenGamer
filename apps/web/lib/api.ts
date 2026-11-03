@@ -61,6 +61,7 @@ export type Mod = {
   install: InstallStep[];
   latest_release: Release | null;
   compat: CompatSummary;
+  installs: { total: number; last_30_days: number };
   updated_at: string;
 };
 export type Counts = { works: number; issues: number; broken: number };

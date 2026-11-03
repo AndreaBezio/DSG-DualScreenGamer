@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { syncState, type Db } from '@dsg/db';
 import { IDENTIFIER_KINDS, MOD_TYPES, type IdentifierKind } from '@dsg/schema';
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
@@ -20,6 +20,7 @@ import {
 import { accountRoutes, type AccountOptions } from './account.ts';
 import { safeEqual } from './auth.ts';
 import * as fe from './frontend.ts';
+import { installRoutes } from './installs.ts';
 import { reportRoutes } from './reports.ts';
 import * as q from './queries.ts';
 import { rateLimit } from './rate-limit.ts';
@@ -29,6 +30,8 @@ export type AppOptions = {
   rateLimitPerMinute?: number;
   trustProxy?: boolean;
   publicUrl?: string;
+  /** Key for the daily install-dedupe hashes (random per process when unset) */
+  installSalt?: string;
   /** Website base URL, for links in feeds */
   siteUrl?: string;
   account?: AccountOptions;
@@ -277,14 +280,20 @@ export function createApp(db: Db, opts: AppOptions = {}) {
       path: '/v1/mods',
       tags: ['catalog'],
       summary: 'List mods',
-      request: { query: ModFilterQuery.extend({ game: z.string().optional(), q: z.string().optional() }) },
+      request: {
+        query: ModFilterQuery.extend({
+          game: z.string().optional(),
+          q: z.string().optional(),
+          sort: z.enum(['recent', 'popular']).optional().openapi({ description: 'recent (default): latest release first; popular: installs in the last 30 days' }),
+        }),
+      },
       responses: { 200: json(z.object({ items: z.array(ModDto) }), 'Mods'), 400: json(ErrorDto, 'Unknown platform') },
     }),
     async (c) => {
       const f = c.req.valid('query');
       const r = await fe.resolveFilter(db, f);
       if ('error' in r) return c.json({ error: r.error }, 400);
-      const items = await q.listMods(db, { ...r.filter, gameId: f.game, q: f.q });
+      const items = await q.listMods(db, { ...r.filter, gameId: f.game, q: f.q, sort: f.sort });
       return c.json({ items }, 200);
     },
   );
@@ -424,6 +433,7 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   app.get('/v1/docs', Scalar({ url: '/v1/openapi.json', pageTitle: 'DSG API' }));
 
   app.route('/v1', reportRoutes(db));
+  app.route('/v1', installRoutes(db, { salt: opts.installSalt ?? randomBytes(32).toString('hex'), trustProxy: opts.trustProxy ?? false }));
   app.route('/', accountRoutes(db, { publicUrl: opts.publicUrl, ...opts.account }));
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));

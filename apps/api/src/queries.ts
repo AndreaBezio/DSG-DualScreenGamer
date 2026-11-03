@@ -19,13 +19,14 @@ import {
 import { normalizeIdentifier, type IdentifierKind } from '@dsg/schema';
 import { and, arrayContains, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { GameDto, MediaDto, ModDto, ReleaseDto } from './dto.ts';
+import { installStats, popularity } from './installs.ts';
 import { compatSummaries, emptySummary } from './reports.ts';
 import { deviceMatches, targetMatches, type MatchQuery, type TargetRow } from './match.ts';
 
 type ModRow = typeof mods.$inferSelect;
 type GameRow = typeof games.$inferSelect;
 
-export type ModFilter = MatchQuery & { gameId?: string; type?: string; device?: string; q?: string };
+export type ModFilter = MatchQuery & { gameId?: string; type?: string; device?: string; q?: string; sort?: 'recent' | 'popular' };
 type LookupFilter = Omit<ModFilter, 'gameId' | 'identifiers'>;
 
 /** Groups rows by key once, instead of filtering the whole list for every parent. */
@@ -101,7 +102,7 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
       ? db.select().from(gameMedia).where(inArray(gameMedia.gameId, gameIds)).orderBy(asc(gameMedia.position))
       : Promise.resolve([]),
   ]);
-  const [releases, compat] = await Promise.all([releasesFor(db, latest), compatSummaries(db, ids)]);
+  const [releases, compat, installs] = await Promise.all([releasesFor(db, latest), compatSummaries(db, ids), installStats(db, ids)]);
   const targetsBy = groupBy(targets, (x) => x.modId);
   const latestBy = new Map(latest.map((r) => [r.modId, r]));
   const mediaBy = groupBy(media, (x) => x.modId);
@@ -157,6 +158,7 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
       install: m.install as ModDto['install'],
       latest_release: rel ? releases.get(rel.id)! : null,
       compat: compat.get(m.id) ?? emptySummary(),
+      installs: installs.get(m.id) ?? { total: 0, last_30_days: 0 },
       updated_at: m.updatedAt.toISOString(),
       _targets: t,
     };
@@ -184,7 +186,11 @@ export async function listMods(db: Db, f: ModFilter): Promise<ModDto[]> {
     .select()
     .from(mods)
     .where(and(...where))
-    .orderBy(sql`${mods.lastReleaseAt} desc nulls last`, asc(mods.name));
+    .orderBy(
+      ...(f.sort === 'popular' ? [sql`${popularity()} desc`] : []),
+      sql`${mods.lastReleaseAt} desc nulls last`,
+      asc(mods.name),
+    );
   return filterMods(await hydrateMods(db, rows), f);
 }
 

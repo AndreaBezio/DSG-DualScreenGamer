@@ -1,6 +1,17 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { getConnInfo } from '@hono/node-server/conninfo';
 
+/** The caller's address: first X-Forwarded-For hop behind a trusted proxy, else the socket. */
+export function clientIp(c: Context, trustProxy: boolean): string {
+  const forwarded = trustProxy ? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() : undefined;
+  if (forwarded) return forwarded;
+  try {
+    return getConnInfo(c).remote.address ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 /** Fixed-window per-IP limiter. In memory: fine for a single API container. */
 export function rateLimit(perMinute: number, trustProxy: boolean, skip?: (c: Context) => boolean): MiddlewareHandler {
   const hits = new Map<string, { n: number; reset: number }>();
@@ -11,19 +22,12 @@ export function rateLimit(perMinute: number, trustProxy: boolean, skip?: (c: Con
 
   return async (c, next) => {
     if (skip?.(c)) return next();
-    let ip = trustProxy ? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() : undefined;
-    if (!ip) {
-      try {
-        ip = getConnInfo(c).remote.address;
-      } catch {
-        ip = 'unknown';
-      }
-    }
+    const ip = clientIp(c, trustProxy);
     const now = Date.now();
-    let e = hits.get(ip ?? 'unknown');
+    let e = hits.get(ip);
     if (!e || e.reset < now) {
       e = { n: 0, reset: now + 60_000 };
-      hits.set(ip ?? 'unknown', e);
+      hits.set(ip, e);
     }
     e.n++;
     c.header('RateLimit-Limit', String(perMinute));

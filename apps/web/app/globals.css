@@ -581,6 +581,17 @@ img {
   font-size: 12px;
   color: var(--muted);
 }
+.card-badges {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.card-installs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 700;
+}
 .card-version {
   flex: none;
   white-space: nowrap;
