@@ -34,7 +34,10 @@ export default async function Home() {
         {featured ? (
           <div className="hero-feature">
             {featured.previews.length ? (
-              <DualScreenPreview previews={featured.previews} />
+              <DualScreenPreview
+                previews={featured.previews}
+                devices={index.devices.filter((d) => d.displays.length >= 2 && (!featured.devices.length || featured.devices.includes(d.id)))}
+              />
             ) : (
               <img className="showcase" src={featured.media[0]!.url} alt={featured.name} />
             )}

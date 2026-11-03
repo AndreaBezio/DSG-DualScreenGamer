@@ -1126,13 +1126,23 @@ img {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 .dsp-top {
-  aspect-ratio: 16 / 9;
+  aspect-ratio: var(--top-ar, 16 / 9);
 }
 .dsp-bottom {
-  /* AYN Thor: 1240x1080 under a 1920x1080 screen */
-  width: 64.6%;
+  /* Width and shape come from the device's real screens (see frameStyle) */
+  width: var(--bottom-w, 56.5%);
   margin: 0 auto;
-  aspect-ratio: 1240 / 1080;
+  aspect-ratio: var(--bottom-ar, 1240 / 1080);
+}
+.dsp-device-pick {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
 }
 .dsp-screen img {
   width: 100%;
@@ -1722,6 +1732,33 @@ img {
   color: var(--fg);
   font: inherit;
   font-size: 14px;
+}
+
+.spec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.spec-table th,
+.spec-table td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.spec-table th {
+  color: var(--muted);
+  font-weight: 800;
+}
+.profile + .profile {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.profile h3 {
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+.device-frame {
+  width: min(100%, 280px);
 }
 
 /* ---------- Responsive ---------- */

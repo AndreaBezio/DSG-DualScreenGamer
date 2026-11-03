@@ -11,6 +11,8 @@ import {
   platforms,
   releaseAssets,
   syncRuns,
+  compatReports,
+  users,
   isGithubSource,
   type Db,
 } from '@dsg/db';
@@ -452,6 +454,28 @@ export async function fullIndex(db: Db) {
     games: await hydrateGames(db, gameRows),
     mods: modList,
   };
+}
+
+/** A device with how many mods target it and what players reported on it. */
+export async function getDevice(db: Db, idOrAlias: string) {
+  const all = await db.select().from(devices);
+  const d = all.find((x) => x.id === idOrAlias || x.aliases.includes(idOrAlias.toLowerCase()));
+  if (!d) return null;
+  const [[count], reports] = await Promise.all([
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(mods)
+      .where(and(eq(mods.published, true), arrayContains(mods.devices, [d.id]))),
+    db
+      .select({ result: compatReports.result, n: sql<number>`count(*)::int` })
+      .from(compatReports)
+      .innerJoin(users, eq(users.id, compatReports.userId))
+      .where(and(eq(compatReports.device, d.id), eq(compatReports.hidden, false), eq(users.banned, false)))
+      .groupBy(compatReports.result),
+  ]);
+  const r = { works: 0, issues: 0, broken: 0 };
+  for (const x of reports) r[x.result as keyof typeof r] = x.n;
+  return { ...d, mod_count: count?.n ?? 0, reports: r };
 }
 
 export async function lastSync(db: Db) {

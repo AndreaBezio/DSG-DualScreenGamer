@@ -103,7 +103,7 @@ export async function syncRegistry(db: Db, reg: Registry): Promise<{ errors: str
       await tx.insert(emulators).values(row).onConflictDoUpdate({ target: emulators.id, set: row });
     }
     for (const d of reg.catalog.devices) {
-      const row = { ...d, resolutions: d.resolutions ?? null };
+      const row = { ...d, chipset: d.chipset ?? null };
       await tx.insert(devices).values(row).onConflictDoUpdate({ target: devices.id, set: row });
     }
 

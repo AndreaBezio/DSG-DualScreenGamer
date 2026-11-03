@@ -92,7 +92,21 @@ export type Submission = {
   reviewed_at: string | null;
 };
 export type Emulator = { id: string; name: string; kind: string; platforms: string[]; homepage: string | null };
-export type Device = { id: string; name: string; manufacturer: string; screens: number };
+export type Display = { role: 'top' | 'bottom'; width: number; height: number; diagonal_in?: number; panel?: string; refresh_hz?: number; touch?: boolean };
+export type DeviceProfile = { emulator: string; note?: string; settings: { name: string; value: string; note?: string }[]; source_url: string };
+export type Device = {
+  id: string;
+  name: string;
+  manufacturer: string;
+  os: string;
+  screens: number;
+  chipset: string | null;
+  aliases: string[];
+  displays: Display[];
+  profiles: DeviceProfile[];
+  sources: string[];
+};
+export type DeviceDetail = Device & { mod_count: number; reports: Counts };
 export type Index = { platforms: Platform[]; emulators: Emulator[]; devices: Device[]; games: Game[]; mods: Mod[] };
 
 const BASE = process.env.API_INTERNAL_URL ?? 'http://localhost:3001';
@@ -117,6 +131,7 @@ export const api = {
     (await get<{ items: Mod[] }>(`/v1/mods?${query(params)}`))?.items ?? [],
   games: async (params: Record<string, string | undefined>) =>
     (await get<{ items: Game[]; next_offset: number | null }>(`/v1/games?${query({ limit: '100', ...params })}`))?.items ?? [],
+  device: (id: string) => get<DeviceDetail>(`/v1/devices/${encodeURIComponent(id)}`),
   reports: async (id: string) =>
     (await get<{ summary: CompatSummary; items: CompatReport[] }>(`/v1/mods/${encodeURIComponent(id)}/reports`)) ?? null,
   releases: async (id: string) => (await get<{ items: Release[] }>(`/v1/mods/${encodeURIComponent(id)}/releases`))?.items ?? [],

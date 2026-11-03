@@ -320,6 +320,14 @@ describe('compatibility reports', () => {
     expect(((await (await call('/v1/mods/test-quest-hd/reports', null)).json()) as any).summary.broken).toBe(0);
   });
 
+  it('describes devices with their screens, settings and reports', async () => {
+    const d = (await (await call('/v1/devices/thor', null)).json()) as any;
+    expect(d).toMatchObject({ id: 'ayn-thor', displays: [{ role: 'top', width: 1920 }, { role: 'bottom', width: 1240 }] });
+    expect(d.profiles[0]).toMatchObject({ emulator: 'azahar', source_url: 'https://example.org/guide' });
+    expect(d.reports.works).toBeGreaterThan(0);
+    expect((await call('/v1/devices/nope', null)).status).toBe(404);
+  });
+
   it('keeps public routes public', async () => {
     expect((await call('/v1/mods/test-quest-hd/reports', null)).status).toBe(200);
     expect((await call('/v1/platforms', null)).status).toBe(200);

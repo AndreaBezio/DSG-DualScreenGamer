@@ -9,7 +9,8 @@
     "developers": "Developers",
     "submit": "Add a mod",
     "search": "Search mods",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "devices": "Devices"
   },
   "footer": {
     "line": "DSG links to the authors' own GitHub releases. Mods belong to their authors.",
@@ -100,7 +101,8 @@
     "top": "Top screen",
     "bottom": "Bottom screen",
     "prev": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "device": "Device"
   },
   "dev": {
     "title": "Build DSG into your emulator",
@@ -346,5 +348,26 @@
     "cancel": "Cancel",
     "add": "Report how it runs on your device",
     "signIn": "Sign in to report how it runs"
+  },
+  "devices": {
+    "title": "Dual-screen devices",
+    "lead": "Screens, recommended emulator settings and mods for each handheld.",
+    "screens": "Screens",
+    "screen": "Screen",
+    "resolution": "Resolution",
+    "size": "Size",
+    "panel": "Panel",
+    "top": "Top",
+    "bottom": "Bottom",
+    "touch": "touch",
+    "chipset": "Chipset",
+    "os": "System",
+    "settings": "Recommended settings",
+    "source": "Source",
+    "noProfiles": "No recommended settings yet. Know a good setup? Add it to registry/catalog/devices.yaml with its source.",
+    "mods": "Made for this device",
+    "reports": "Player reports on this device",
+    "specSources": "Specifications from",
+    "modCount": "{count, plural, =0 {No mods made for it yet} one {# mod made for it} other {# mods made for it}}"
   }
 }

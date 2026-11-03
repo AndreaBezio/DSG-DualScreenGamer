@@ -1,10 +1,67 @@
-# Dual-screen hardware. Resolutions: primary (top) screen first.
+# Dual-screen hardware. `displays` lists each screen, top first; `profiles` are recommended emulator
+# settings. Every value here comes from the pages listed in `sources` / `source_url`: add yours the same way.
 - id: ayn-thor
   name: AYN Thor
   manufacturer: AYN
   os: android
   screens: 2
-  resolutions: ["1920x1080", "1240x1080"]
+  chipset: Snapdragon 8 Gen 2 (Lite model Snapdragon 865)
+  aliases: [thor]
+  displays:
+    - { role: top, width: 1920, height: 1080, diagonal_in: 6.0, panel: amoled, refresh_hz: 120 }
+    - { role: bottom, width: 1240, height: 1080, diagonal_in: 3.92, panel: amoled, refresh_hz: 60, touch: true }
+  sources:
+    - https://www.androidauthority.com/ayn-thor-screen-size-3589297
+    - https://www.pockettactics.com/ayn-thor-specs
+  profiles:
+    - emulator: azahar
+      settings:
+        - { name: "Settings › Layout › Second Display Screen Layout", value: Bottom Screen, note: Reload the game afterwards; later games keep it }
+        - { name: Asynchronous Shader Compilation, value: "On", note: Avoids micro-stutter when new assets load }
+        - { name: Screen Swap, value: Map to a physical button }
+      source_url: https://droix.net/blogs/ayn-thor-dual-screen-gaming-handheld/
+    - emulator: melonds
+      note: Needs the community dual-screen fork of melonDS; the official app has no dual-screen support.
+      settings:
+        - { name: "Video › Dual Screen Presets", value: "Internal: Top, External: Bottom", note: "On the Thor the top screen is the primary display" }
+      source_url: https://retrogamecorps.com/category/3ds
+- id: ayaneo-pocket-ds
+  name: AYANEO Pocket DS
+  manufacturer: AYANEO
+  os: android
+  screens: 2
+  chipset: Snapdragon G3x Gen 2
+  aliases: [pocket-ds]
+  displays:
+    - { role: top, width: 1920, height: 1080, diagonal_in: 7.0, panel: oled }
+    - { role: bottom, width: 1024, height: 768, diagonal_in: 5.0, panel: ips, touch: true }
+  sources:
+    - https://www.androidauthority.com/ayaneo-pocket-ds-specs-3582017/
+    - https://www.timeextension.com/reviews/ayaneo-pocket-ds-dual-screen-gaming-comes-to-android
+- id: anbernic-rg-ds
+  name: Anbernic RG DS
+  manufacturer: Anbernic
+  os: android
+  screens: 2
+  chipset: Rockchip RK3568
+  aliases: [rg-ds, rgds]
+  displays:
+    - { role: top, width: 640, height: 480, diagonal_in: 4.0, panel: ips }
+    - { role: bottom, width: 640, height: 480, diagonal_in: 4.0, panel: ips, touch: true }
+  sources:
+    - https://www.androidauthority.com/anbernic-rg-ds-specs-leak-3611600
+    - https://blog.omgmog.net/post/anbernic-rg-ds-review/
+- id: anbernic-rg-ds-plus
+  name: Anbernic RG DS Plus
+  manufacturer: Anbernic
+  os: linux
+  screens: 2
+  aliases: [rg-ds-plus]
+  displays:
+    - { role: top, width: 1024, height: 768, diagonal_in: 4.3 }
+    - { role: bottom, width: 1024, height: 768, diagonal_in: 4.3 }
+  sources:
+    - https://anbernic.com/blogs/news/rg-ds-plus-vs-rg-ds
 - id: dual-monitor-pc
   name: Dual-monitor PC
   manufacturer: Generic

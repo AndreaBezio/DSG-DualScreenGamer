@@ -55,8 +55,23 @@ export const devices = pgTable('devices', {
   manufacturer: text('manufacturer').notNull(),
   os: text('os').notNull(),
   screens: smallint('screens').notNull(),
-  resolutions: text('resolutions').array(),
+  chipset: text('chipset'),
+  aliases: text('aliases').array().notNull().default(sql`'{}'`),
+  displays: jsonb('displays').$type<DeviceDisplay[]>().notNull().default(sql`'[]'`),
+  profiles: jsonb('profiles').$type<DeviceProfile[]>().notNull().default(sql`'[]'`),
+  sources: text('sources').array().notNull().default(sql`'{}'`),
 });
+
+export type DeviceDisplay = {
+  role: 'top' | 'bottom';
+  width: number;
+  height: number;
+  diagonal_in?: number;
+  panel?: string;
+  refresh_hz?: number;
+  touch?: boolean;
+};
+export type DeviceProfile = { emulator: string; note?: string; settings: { name: string; value: string; note?: string }[]; source_url: string };
 
 export const games = pgTable(
   'games',

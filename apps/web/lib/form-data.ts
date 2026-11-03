@@ -7,7 +7,7 @@ export async function formCatalog() {
   return {
     platforms: index.platforms.map((p) => ({ id: p.id, name: p.name })),
     emulators: index.emulators.map((e) => ({ id: e.id, name: e.name, platforms: e.platforms })),
-    devices: index.devices.map((d) => ({ id: d.id, name: d.name })),
+    devices: index.devices.map((d) => ({ id: d.id, name: d.name, displays: d.displays })),
     apiUrl: PUBLIC_API_URL,
   };
 }

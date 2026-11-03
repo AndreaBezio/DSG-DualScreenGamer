@@ -14,7 +14,22 @@ export const registry: Registry = {
       { id: 'azahar', name: 'Azahar', kind: 'emulator', platforms: ['3ds'], os: ['android'] },
       { id: 'melonds', name: 'melonDS', kind: 'emulator', platforms: ['nds'], os: ['android'] },
     ],
-    devices: [{ id: 'ayn-thor', name: 'AYN Thor', manufacturer: 'AYN', os: 'android', screens: 2 }],
+    devices: [
+      {
+        id: 'ayn-thor',
+        name: 'AYN Thor',
+        manufacturer: 'AYN',
+        os: 'android',
+        screens: 2,
+        aliases: ['thor'],
+        displays: [
+          { role: 'top', width: 1920, height: 1080, diagonal_in: 6 },
+          { role: 'bottom', width: 1240, height: 1080, diagonal_in: 3.92 },
+        ],
+        profiles: [{ emulator: 'azahar', settings: [{ name: 'Second Display Screen Layout', value: 'Bottom Screen' }], source_url: 'https://example.org/guide' }],
+        sources: [],
+      },
+    ],
   },
   games: [
     {

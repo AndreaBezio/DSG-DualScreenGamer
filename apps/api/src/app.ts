@@ -6,6 +6,7 @@ import { Scalar } from '@scalar/hono-api-reference';
 import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import {
+  DeviceDetailDto,
   DeviceDto,
   EmulatorDto,
   ErrorDto,
@@ -354,6 +355,20 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   );
   app.openapi(listRoute('/v1/devices', DeviceDto, 'Dual-screen devices'), async (c) =>
     c.json({ items: (await q.catalog(db)).devices }, 200),
+  );
+  app.openapi(
+    createRoute({
+      method: 'get',
+      path: '/v1/devices/{id}',
+      tags: ['catalog'],
+      summary: 'A device: screens, recommended emulator settings, mods and player reports',
+      request: { params: z.object({ id: z.string().openapi({ param: { name: 'id', in: 'path' }, example: 'ayn-thor' }) }) },
+      responses: { 200: json(DeviceDetailDto, 'Device'), ...notFound },
+    }),
+    async (c) => {
+      const d = await q.getDevice(db, c.req.valid('param').id);
+      return d ? c.json(d, 200) : c.json({ error: 'not found' }, 404);
+    },
   );
 
   // Whole catalog in one document, for clients that prefer an offline cache. Revalidate with If-None-Match.

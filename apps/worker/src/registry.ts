@@ -114,6 +114,11 @@ export function loadRegistry(root: string): LoadResult {
     }
   }
 
+  for (const d of catalog.devices) {
+    if (d.displays.length && d.displays.length !== d.screens) errors.push(`device ${d.id}: ${d.displays.length} displays listed for ${d.screens} screens`);
+    for (const pr of d.profiles) if (!emulatorById.has(pr.emulator)) errors.push(`device ${d.id}: profile for unknown emulator "${pr.emulator}"`);
+  }
+
   for (const e of catalog.emulators) {
     for (const p of e.platforms) if (!platformIds.has(p)) errors.push(`emulator ${e.id}: unknown platform "${p}"`);
   }

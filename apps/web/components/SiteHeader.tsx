@@ -25,6 +25,9 @@ export function SiteHeader() {
           <Link href="/games" data-nav>
             {t('games')}
           </Link>
+          <Link href="/devices" data-nav>
+            {t('devices')}
+          </Link>
           <Link href="/developers" data-nav>
             {t('developers')}
           </Link>

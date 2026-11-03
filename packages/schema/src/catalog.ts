@@ -57,8 +57,39 @@ export const Device = z
     manufacturer: z.string(),
     os: z.enum(['android', 'windows', 'linux']),
     screens: z.number().int().min(1).max(3),
-    /** Resolution of each screen, top/primary first. */
-    resolutions: z.array(z.string().regex(/^\d+x\d+$/)).optional(),
+    chipset: z.string().optional(),
+    aliases: z.array(z.string()).default([]),
+    /** Each physical screen, top first. Diagonals give the real proportions in previews. */
+    displays: z
+      .array(
+        z
+          .object({
+            role: z.enum(['top', 'bottom']),
+            width: z.number().int().positive(),
+            height: z.number().int().positive(),
+            diagonal_in: z.number().positive().optional(),
+            panel: z.enum(['amoled', 'oled', 'ips', 'lcd']).optional(),
+            refresh_hz: z.number().int().positive().optional(),
+            touch: z.boolean().optional(),
+          })
+          .strict(),
+      )
+      .default([]),
+    /** Recommended emulator settings for this device; every profile cites where it comes from. */
+    profiles: z
+      .array(
+        z
+          .object({
+            emulator: Slug,
+            note: z.string().optional(),
+            settings: z.array(z.object({ name: z.string(), value: z.string(), note: z.string().optional() }).strict()).min(1),
+            source_url: z.url(),
+          })
+          .strict(),
+      )
+      .default([]),
+    /** Where the specs come from */
+    sources: z.array(z.url()).default([]),
   })
   .strict();
 export type Device = z.infer<typeof Device>;

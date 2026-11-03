@@ -165,9 +165,37 @@ export const DeviceDto = z
     manufacturer: z.string(),
     os: z.string(),
     screens: z.number(),
-    resolutions: z.array(z.string()).nullable(),
+    chipset: z.string().nullable(),
+    aliases: z.array(z.string()),
+    displays: z.array(
+      z.object({
+        role: z.enum(['top', 'bottom']),
+        width: z.number(),
+        height: z.number(),
+        diagonal_in: z.number().optional(),
+        panel: z.string().optional(),
+        refresh_hz: z.number().optional(),
+        touch: z.boolean().optional(),
+      }),
+    ),
+    profiles: z
+      .array(
+        z.object({
+          emulator: z.string(),
+          note: z.string().optional(),
+          settings: z.array(z.object({ name: z.string(), value: z.string(), note: z.string().optional() })),
+          source_url: z.string(),
+        }),
+      )
+      .openapi({ description: 'Recommended emulator settings, each with its source' }),
+    sources: z.array(z.string()),
   })
   .openapi('Device');
+
+export const DeviceDetailDto = DeviceDto.extend({
+  mod_count: z.number().openapi({ description: 'Mods made specifically for this device' }),
+  reports: z.object({ works: z.number(), issues: z.number(), broken: z.number() }),
+}).openapi('DeviceDetail');
 
 export const ErrorDto = z.object({ error: z.string() }).openapi('Error');
 

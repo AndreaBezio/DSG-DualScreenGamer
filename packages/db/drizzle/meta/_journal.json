@@ -36,6 +36,20 @@
       "when": 1793701649112,
       "tag": "0004_compat_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793701889441,
+      "tag": "0005_device_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793701890340,
+      "tag": "0006_drop_device_resolutions",
+      "breakpoints": true
     }
   ]
 }

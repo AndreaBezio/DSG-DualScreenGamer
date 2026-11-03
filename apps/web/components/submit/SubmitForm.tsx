@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DualScreenPreview } from '@/components/DualScreenPreview';
 import { Icon } from '@/components/Icon';
-import type { Preview } from '@/lib/api';
+import type { Display, Preview } from '@/lib/api';
 import { hashRom, type RomHashes } from '@/lib/romhash';
 import {
   clean,
@@ -36,7 +36,7 @@ export type SubmitFormProps = {
   me: { display_name: string };
   platforms: Option[];
   emulators: EmulatorOption[];
-  devices: Option[];
+  devices: (Option & { displays: Display[] })[];
   apiUrl: string;
 };
 
@@ -159,7 +159,16 @@ export function SubmitForm(props: SubmitFormProps) {
         {step === 'compat' ? (
           <CompatStep draft={draft} update={update} gamePlatforms={gamePlatforms} dumps={gameDumps} platforms={props.platforms} emulators={props.emulators} devices={props.devices} />
         ) : null}
-        {step === 'screens' ? <ScreensStep draft={draft} update={update} apiUrl={props.apiUrl} dims={dims} setDims={setDims} /> : null}
+        {step === 'screens' ? (
+          <ScreensStep
+            draft={draft}
+            update={update}
+            apiUrl={props.apiUrl}
+            dims={dims}
+            setDims={setDims}
+            devices={props.devices.filter((d) => d.displays.length >= 2 && (!draft.mod.devices.length || draft.mod.devices.includes(d.id)))}
+          />
+        ) : null}
         {step === 'download' ? <DownloadStep draft={draft} update={update} /> : null}
         {step === 'install' ? <InstallStep draft={draft} update={update} roles={roles} /> : null}
         {step === 'review' ? (
@@ -644,7 +653,8 @@ function ScreensStep({
   apiUrl,
   dims,
   setDims,
-}: StepProps & { apiUrl: string; dims: Record<string, { w: number; h: number }>; setDims: (fn: (d: Record<string, { w: number; h: number }>) => Record<string, { w: number; h: number }>) => void }) {
+  devices,
+}: StepProps & { apiUrl: string; devices: (Option & { displays: Display[] })[]; dims: Record<string, { w: number; h: number }>; setDims: (fn: (d: Record<string, { w: number; h: number }>) => Record<string, { w: number; h: number }>) => void }) {
   const t = useTranslations('form');
   const remember = (r: { sha256: string; width: number; height: number }) => setDims((d) => ({ ...d, [r.sha256]: { w: r.width, h: r.height } }));
   const previews: Preview[] = useMemo(
@@ -712,7 +722,7 @@ function ScreensStep({
         </div>
         <div className="live-preview">
           <span className="field-label">{t('livePreview')}</span>
-          {previews.length ? <DualScreenPreview previews={previews} /> : <p className="empty">{t('previewEmpty')}</p>}
+          {previews.length ? <DualScreenPreview previews={previews} devices={devices} /> : <p className="empty">{t('previewEmpty')}</p>}
         </div>
       </div>
 

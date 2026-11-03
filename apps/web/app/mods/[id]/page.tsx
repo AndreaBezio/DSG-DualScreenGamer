@@ -31,6 +31,9 @@ export default async function ModPage({ params }: Props) {
     getMe(),
   ]);
   const targetPlatforms = new Set(mod.targets.map((x) => x.platform));
+  // Preview on the devices the mod is made for, else on every dual-screen device we know
+  const dual = index.devices.filter((d) => d.displays.length >= 2);
+  const previewDevices = dual.some((d) => mod.devices.includes(d.id)) ? dual.filter((d) => mod.devices.includes(d.id)) : dual;
   const t = await getTranslations('mod');
   const tt = await getTranslations('types');
   const format = await getFormatter();
@@ -116,7 +119,7 @@ export default async function ModPage({ params }: Props) {
           {mod.previews.length ? (
             <section className="sheet">
               <h2>{t('preview')}</h2>
-              <DualScreenPreview previews={mod.previews} />
+              <DualScreenPreview previews={mod.previews} devices={previewDevices} />
             </section>
           ) : null}
 
@@ -225,7 +228,7 @@ export default async function ModPage({ params }: Props) {
               ))}
               {mod.devices.map((d) => (
                 <li className="chip chip-strong" key={d}>
-                  {name('devices', d)}
+                  <Link href={`/devices/${d}`}>{name('devices', d)}</Link>
                 </li>
               ))}
             </ul>
