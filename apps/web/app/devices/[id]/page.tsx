@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { ModCard, Panel } from '@/components/Cards';
-import { frameStyle } from '@/components/DualScreenPreview';
+import { frameStyle } from '@/lib/frame';
 import { Icon } from '@/components/Icon';
 import { api } from '@/lib/api';
 

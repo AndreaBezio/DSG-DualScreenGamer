@@ -113,10 +113,11 @@ export type Index = { platforms: Platform[]; emulators: Emulator[]; devices: Dev
 const BASE = process.env.API_INTERNAL_URL ?? 'http://localhost:3001';
 export const PUBLIC_API_URL = process.env.PUBLIC_API_URL ?? 'http://localhost:3001';
 
-async function get<T>(path: string): Promise<T | null> {
+/** Catalog data may be a minute old; live data (reports) is always fetched fresh. */
+async function get<T>(path: string, live = false): Promise<T | null> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'User-Agent': 'dsg-web' },
-    next: { revalidate: 60 },
+    ...(live ? { cache: 'no-store' as const } : { next: { revalidate: 60 } }),
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`API ${path}: HTTP ${res.status}`);
@@ -134,7 +135,7 @@ export const api = {
     (await get<{ items: Game[]; next_offset: number | null }>(`/v1/games?${query({ limit: '100', ...params })}`))?.items ?? [],
   device: (id: string) => get<DeviceDetail>(`/v1/devices/${encodeURIComponent(id)}`),
   reports: async (id: string) =>
-    (await get<{ summary: CompatSummary; items: CompatReport[] }>(`/v1/mods/${encodeURIComponent(id)}/reports`)) ?? null,
+    (await get<{ summary: CompatSummary; items: CompatReport[] }>(`/v1/mods/${encodeURIComponent(id)}/reports`, true)) ?? null,
   releases: async (id: string) => (await get<{ items: Release[] }>(`/v1/mods/${encodeURIComponent(id)}/releases`))?.items ?? [],
 };
 

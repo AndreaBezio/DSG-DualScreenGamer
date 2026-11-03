@@ -200,6 +200,7 @@ img {
   opacity: 0.5;
 }
 .brand-full {
+  white-space: nowrap;
   font-weight: 600;
   letter-spacing: 0;
   color: var(--muted);
@@ -211,6 +212,7 @@ img {
   gap: 4px;
 }
 .site-nav a {
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -232,7 +234,7 @@ img {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: min(260px, 30vw);
+  width: min(240px, 22vw);
   height: 36px;
   padding: 0 12px;
   border-radius: 999px;
@@ -259,6 +261,7 @@ img {
   box-shadow: 0 0 0 3px var(--cursor-glow);
 }
 .clock {
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   font-size: 14px;
@@ -1769,14 +1772,25 @@ img {
   margin-bottom: 6px;
 }
 .device-frame {
-  width: min(100%, 280px);
+  width: 200px;
+  flex: none;
 }
 
 /* ---------- Responsive ---------- */
 
+@media (max-width: 1440px) {
+  .brand-full {
+    display: none;
+  }
+}
+
+@media (max-width: 1280px) {
+  .clock {
+    display: none;
+  }
+}
+
 @media (max-width: 960px) {
-  .brand-full,
-  .clock,
   .account-name {
     display: none;
   }

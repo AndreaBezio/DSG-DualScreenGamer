@@ -161,7 +161,10 @@ export default async function ModPage({ params }: Props) {
               version={rel?.version ?? null}
               summary={reports.summary}
               items={reports.items}
-              devices={index.devices.map((d) => ({ id: d.id, name: d.name }))}
+              // The devices the mod is made for come first, so the form starts on the right one
+              devices={[...index.devices]
+                .sort((a, b) => Number(mod.devices.includes(b.id)) - Number(mod.devices.includes(a.id)))
+                .map((d) => ({ id: d.id, name: d.name }))}
               emulators={index.emulators.filter((e) => e.platforms.some((p) => targetPlatforms.has(p))).map((e) => ({ id: e.id, name: e.name }))}
               signedIn={!!me}
             />
