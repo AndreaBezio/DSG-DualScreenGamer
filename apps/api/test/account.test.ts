@@ -71,7 +71,7 @@ beforeAll(async () => {
   db = createDb(url);
   await migrate(db, { migrationsFolder: fileURLToPath(new URL('../../../packages/db/drizzle', import.meta.url)) });
   await db.execute(
-    sql`truncate platforms, emulators, devices, games, game_identifiers, game_media, mods, mod_targets, mod_media, mod_releases, release_assets, sync_state, sync_runs, users, user_accounts, sessions, uploads, submissions restart identity cascade`,
+    sql`truncate platforms, emulators, devices, games, game_identifiers, game_media, mods, mod_targets, mod_media, mod_releases, release_assets, sync_state, sync_runs, users, user_accounts, sessions, uploads, submissions, compat_reports restart identity cascade`,
   );
   await syncRegistry(db, registry);
   await syncArtwork(db, registry, { fetch: fakeGitHubFetch() });
@@ -284,6 +284,45 @@ describe('submission lifecycle', () => {
     await call(`/v1/admin/users/${me.id}/banned`, admin, { method: 'POST', body: JSON.stringify({ banned: true }) });
     expect((await call('/v1/me', alice)).status).toBe(401);
     expect((await call('/v1/mods/moon-patrol-dx-thor-layout', null)).status).toBe(404);
+  });
+});
+
+describe('compatibility reports', () => {
+  it('records one report per user, version and device, and summarises them on the mod', async () => {
+    const bob = await signIn('github', 'bob');
+    const post = (token: string, body: object) => call('/v1/me/reports', token, { method: 'POST', body: JSON.stringify(body) });
+    expect((await post(bob, { mod_id: 'test-quest-hd', device: 'ayn-thor', result: 'works', firmware: '1.2.0' })).status).toBe(201);
+    // Same user, version and device: updated, not duplicated
+    const again = (await (await post(bob, { mod_id: 'test-quest-hd', device: 'ayn-thor', result: 'issues', note: 'menu flickers' })).json()) as any;
+    expect(again.result).toBe('issues');
+    await post(admin, { mod_id: 'test-quest-hd', device: 'ayn-thor', result: 'works', emulator: 'azahar', emulator_version: '2121' });
+    expect((await post(bob, { mod_id: 'test-quest-hd', device: 'nope', result: 'works' })).status).toBe(400);
+    expect((await post(bob, { mod_id: 'test-quest-hd', device: 'ayn-thor', result: 'great' })).status).toBe(400);
+    expect((await call('/v1/me/reports', null, { method: 'POST', body: '{}' })).status).toBe(401);
+
+    const list = (await (await call('/v1/mods/test-quest-hd/reports', null)).json()) as any;
+    expect(list.summary).toMatchObject({ works: 1, issues: 1, broken: 0, by_device: { 'ayn-thor': { works: 1, issues: 1, broken: 0 } } });
+    expect(list.items[0]).toMatchObject({ device: 'ayn-thor', user: { display_name: expect.any(String) } });
+    const mod = (await (await call('/v1/mods/test-quest-hd', null)).json()) as any;
+    expect(mod.compat.works).toBe(1);
+  });
+
+  it('lets moderators hide reports, and hides those of suspended users', async () => {
+    const list = (await (await call('/v1/mods/test-quest-hd/reports', null)).json()) as any;
+    const issue = list.items.find((i: any) => i.result === 'issues');
+    expect((await call(`/v1/admin/reports/${issue.id}/hidden`, admin, { method: 'POST', body: JSON.stringify({ hidden: true }) })).status).toBe(200);
+    expect(((await (await call('/v1/mods/test-quest-hd/reports', null)).json()) as any).summary.issues).toBe(0);
+    const carol = await signIn('github', 'carol');
+    await call('/v1/me/reports', carol, { method: 'POST', body: JSON.stringify({ mod_id: 'test-quest-hd', device: 'ayn-thor', result: 'broken' }) });
+    expect(((await (await call('/v1/mods/test-quest-hd/reports', null)).json()) as any).summary.broken).toBe(1);
+    const me = (await (await call('/v1/me', carol)).json()) as any;
+    await call(`/v1/admin/users/${me.id}/banned`, admin, { method: 'POST', body: JSON.stringify({ banned: true }) });
+    expect(((await (await call('/v1/mods/test-quest-hd/reports', null)).json()) as any).summary.broken).toBe(0);
+  });
+
+  it('keeps public routes public', async () => {
+    expect((await call('/v1/mods/test-quest-hd/reports', null)).status).toBe(200);
+    expect((await call('/v1/platforms', null)).status).toBe(200);
   });
 });
 

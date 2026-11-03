@@ -107,7 +107,8 @@ export function accountRoutes(db: Db, opts: AccountOptions) {
   /* ---------- Me ---------- */
 
   const me = new Hono<Env>();
-  me.use('*', requireUser(db));
+  // Scoped to these paths: a catch-all here would also guard public /v1 routes registered later
+  for (const path of ['/me', '/me/*', '/uploads']) me.use(path, requireUser(db));
 
   me.get('/me', (c) => c.json(publicUser(c.get('user'))));
 

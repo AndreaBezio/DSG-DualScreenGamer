@@ -17,6 +17,7 @@ import {
 import { normalizeIdentifier, type IdentifierKind } from '@dsg/schema';
 import { and, arrayContains, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { GameDto, MediaDto, ModDto, ReleaseDto } from './dto.ts';
+import { compatSummaries, emptySummary } from './reports.ts';
 import { deviceMatches, targetMatches, type MatchQuery, type TargetRow } from './match.ts';
 
 type ModRow = typeof mods.$inferSelect;
@@ -98,7 +99,7 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
       ? db.select().from(gameMedia).where(inArray(gameMedia.gameId, gameIds)).orderBy(asc(gameMedia.position))
       : Promise.resolve([]),
   ]);
-  const releases = await releasesFor(db, latest);
+  const [releases, compat] = await Promise.all([releasesFor(db, latest), compatSummaries(db, ids)]);
   const targetsBy = groupBy(targets, (x) => x.modId);
   const latestBy = new Map(latest.map((r) => [r.modId, r]));
   const mediaBy = groupBy(media, (x) => x.modId);
@@ -153,6 +154,7 @@ async function hydrateMods(db: Db, rows: ModRow[]): Promise<(ModDto & { _targets
       })),
       install: m.install as ModDto['install'],
       latest_release: rel ? releases.get(rel.id)! : null,
+      compat: compat.get(m.id) ?? emptySummary(),
       updated_at: m.updatedAt.toISOString(),
       _targets: t,
     };

@@ -99,6 +99,11 @@ export const PreviewDto = z
   .object({ top: MediaDto, bottom: MediaDto, caption: z.string().nullable() })
   .openapi('DualScreenPreview', { description: 'What the two screens show at the same moment' });
 
+const Counts = z.object({ works: z.number(), issues: z.number(), broken: z.number() });
+export const CompatDto = Counts.extend({ by_device: z.record(z.string(), Counts) }).openapi('CompatSummary', {
+  description: 'Compatibility reports from players, by device',
+});
+
 export const ModDto = z
   .object({
     id: z.string().openapi({ example: 'stardew-valley-dual-screen' }),
@@ -124,6 +129,7 @@ export const ModDto = z
     targets: z.array(TargetDto),
     install: z.array(InstallStepDto),
     latest_release: ReleaseDto.nullable(),
+    compat: CompatDto,
     updated_at: z.string(),
   })
   .openapi('Mod');

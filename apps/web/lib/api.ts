@@ -60,6 +60,21 @@ export type Mod = {
   targets: { platform: string; emulator: string | null; min_version: string | null; max_version: string | null }[];
   install: InstallStep[];
   latest_release: Release | null;
+  compat: CompatSummary;
+  updated_at: string;
+};
+export type Counts = { works: number; issues: number; broken: number };
+export type CompatSummary = Counts & { by_device: Record<string, Counts> };
+export type CompatReport = {
+  id: number;
+  version: string;
+  device: string;
+  firmware: string | null;
+  emulator: string | null;
+  emulator_version: string | null;
+  result: 'works' | 'issues' | 'broken';
+  note: string | null;
+  user: { display_name: string; avatar_url: string | null };
   updated_at: string;
 };
 export type Platform = { id: string; name: string; manufacturer: string | null; kind: string; screens: number };
@@ -102,6 +117,8 @@ export const api = {
     (await get<{ items: Mod[] }>(`/v1/mods?${query(params)}`))?.items ?? [],
   games: async (params: Record<string, string | undefined>) =>
     (await get<{ items: Game[]; next_offset: number | null }>(`/v1/games?${query({ limit: '100', ...params })}`))?.items ?? [],
+  reports: async (id: string) =>
+    (await get<{ summary: CompatSummary; items: CompatReport[] }>(`/v1/mods/${encodeURIComponent(id)}/reports`)) ?? null,
   releases: async (id: string) => (await get<{ items: Release[] }>(`/v1/mods/${encodeURIComponent(id)}/releases`))?.items ?? [],
 };
 

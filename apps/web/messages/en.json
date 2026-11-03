@@ -327,5 +327,24 @@
     "allGood": "Everything looks good.",
     "submitted": "Sent! A moderator will review it soon.",
     "unknownError": "Something went wrong."
+  },
+  "compat": {
+    "title": "Player reports",
+    "none": "No reports yet. Tried it? Tell others how it went.",
+    "counts": "{works} works · {issues} issues · {broken} broken",
+    "result": {
+      "works": "Works",
+      "issues": "Issues",
+      "broken": "Broken"
+    },
+    "firmware": "Firmware",
+    "device": "Device",
+    "emulator": "Emulator (optional)",
+    "emulatorVersion": "Emulator version",
+    "note": "What happened? (optional)",
+    "send": "Report for v{version}",
+    "cancel": "Cancel",
+    "add": "Report how it runs on your device",
+    "signIn": "Sign in to report how it runs"
   }
 }

@@ -6,7 +6,9 @@ import { CopyButton } from '@/components/CopyButton';
 import { DualScreenPreview } from '@/components/DualScreenPreview';
 import { Icon } from '@/components/Icon';
 import { TileArt } from '@/components/Tile';
+import { CompatReports } from '@/components/CompatReports';
 import { api, formatBytes, PUBLIC_API_URL } from '@/lib/api';
+import { getMe } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +23,14 @@ export default async function ModPage({ params }: Props) {
   const { id } = await params;
   const mod = await api.mod(id);
   if (!mod) notFound();
-  const [game, index, releases] = await Promise.all([mod.game_id ? api.game(mod.game_id) : null, api.index(), api.releases(id)]);
+  const [game, index, releases, reports, me] = await Promise.all([
+    mod.game_id ? api.game(mod.game_id) : null,
+    api.index(),
+    api.releases(id),
+    api.reports(id),
+    getMe(),
+  ]);
+  const targetPlatforms = new Set(mod.targets.map((x) => x.platform));
   const t = await getTranslations('mod');
   const tt = await getTranslations('types');
   const format = await getFormatter();
@@ -140,6 +149,18 @@ export default async function ModPage({ params }: Props) {
                 <p key={i}>{para.replace(/\s*\n\s*/g, ' ')}</p>
               ))}
             </section>
+          ) : null}
+
+          {reports ? (
+            <CompatReports
+              modId={mod.id}
+              version={rel?.version ?? null}
+              summary={reports.summary}
+              items={reports.items}
+              devices={index.devices.map((d) => ({ id: d.id, name: d.name }))}
+              emulators={index.emulators.filter((e) => e.platforms.some((p) => targetPlatforms.has(p))).map((e) => ({ id: e.id, name: e.name }))}
+              signedIn={!!me}
+            />
           ) : null}
 
           {mod.install.length ? (

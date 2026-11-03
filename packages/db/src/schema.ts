@@ -328,3 +328,31 @@ export const submissions = pgTable(
   },
   (t) => [index('submissions_status_idx').on(t.status), index('submissions_user_idx').on(t.userId)],
 );
+
+/** "Works on my device": one report per user, mod version and device. */
+export const compatReports = pgTable(
+  'compat_reports',
+  {
+    id: serial('id').primaryKey(),
+    modId: text('mod_id')
+      .notNull()
+      .references(() => mods.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    version: text('version').notNull(),
+    device: text('device').notNull(),
+    firmware: text('firmware'),
+    emulator: text('emulator'),
+    emulatorVersion: text('emulator_version'),
+    /** works | issues | broken */
+    result: text('result').notNull(),
+    note: text('note'),
+    hidden: boolean('hidden').notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('compat_reports_uq').on(t.modId, t.userId, t.version, t.device),
+    index('compat_reports_mod_idx').on(t.modId),
+  ],
+);

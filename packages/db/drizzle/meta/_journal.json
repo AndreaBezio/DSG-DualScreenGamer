@@ -29,6 +29,13 @@
       "when": 1793699187282,
       "tag": "0003_accounts_submissions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793701649112,
+      "tag": "0004_compat_reports",
+      "breakpoints": true
     }
   ]
 }

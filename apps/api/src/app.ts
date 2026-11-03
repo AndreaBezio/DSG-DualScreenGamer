@@ -19,6 +19,7 @@ import {
 import { accountRoutes, type AccountOptions } from './account.ts';
 import { safeEqual } from './auth.ts';
 import * as fe from './frontend.ts';
+import { reportRoutes } from './reports.ts';
 import * as q from './queries.ts';
 import { rateLimit } from './rate-limit.ts';
 
@@ -407,6 +408,7 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   });
   app.get('/v1/docs', Scalar({ url: '/v1/openapi.json', pageTitle: 'DSG API' }));
 
+  app.route('/v1', reportRoutes(db));
   app.route('/', accountRoutes(db, { publicUrl: opts.publicUrl, ...opts.account }));
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));
